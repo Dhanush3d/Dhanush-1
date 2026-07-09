@@ -152,6 +152,7 @@ h1{font-weight:900;font-size:clamp(1.5rem,5vw,2.1rem);margin:0 0 0.3rem;letter-s
   <div class="eyebrow">Personal Departure Checklist</div>
   <h1 id="headerTitle"></h1>
   <div class="route" id="headerRoute"></div>
+  <div class="route" id="syncStatus" style="margin-top:0.3rem;font-size:0.72rem;"></div>
 </div>
 
 <div class="tabs">
@@ -243,6 +244,16 @@ const CONFIG = {
     primary: "#143D59",
     secondary: "#1ABC9C",
     accent: "#2ECC71"
+  },
+  /* CLOUD SYNC — fill these in to make data sync across devices/browsers.
+     1. Go to jsonbin.io and create a free account
+     2. Create a new bin with content: {}
+     3. Copy the Bin ID (from the bin's URL/dashboard) into binId below
+     4. Go to Account → API Keys, copy your "X-Master-Key" into apiKey below
+     Leave both blank to fall back to local-only storage (this device/browser only). */
+  cloud: {
+    binId: "",
+    apiKey: ""
   }
 };
 /* ====================================================================== */
@@ -325,28 +336,89 @@ const defaultData = () => ({
 });
 
 /* ===================== STORAGE ===================== */
-async function storageGet(key){
+const CLOUD_ON = !!(CONFIG.cloud && CONFIG.cloud.binId && CONFIG.cloud.apiKey);
+const JSONBIN_URL = CLOUD_ON ? `https://api.jsonbin.io/v3/b/${CONFIG.cloud.binId}` : null;
+
+function setSyncStatus(text, ok){
+  const el = document.getElementById('syncStatus');
+  if(!el) return;
+  el.textContent = text;
+  el.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+}
+
+// Claude-artifact storage (only exists inside claude.ai) — kept as an extra option.
+async function nativeStorageGet(key){
   if(window.storage && window.storage.get){
     try{ const r = await window.storage.get(key, false); return r ? r.value : null; }catch(e){ return null; }
   }
-  try{ return localStorage.getItem(key); }catch(e){ return null; }
+  return null;
 }
-async function storageSet(key, value){
+async function nativeStorageSet(key, value){
   if(window.storage && window.storage.set){
-    try{ await window.storage.set(key, value, false); return; }catch(e){}
+    try{ await window.storage.set(key, value, false); return true; }catch(e){}
   }
-  try{ localStorage.setItem(key, value); }catch(e){}
+  return false;
 }
+
+async function cloudGet(){
+  const res = await fetch(`${JSONBIN_URL}/latest`, {
+    headers: { 'X-Master-Key': CONFIG.cloud.apiKey }
+  });
+  if(!res.ok) throw new Error('cloud get failed: ' + res.status);
+  const json = await res.json();
+  return json.record;
+}
+async function cloudSet(obj){
+  const res = await fetch(JSONBIN_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.cloud.apiKey },
+    body: JSON.stringify(obj)
+  });
+  if(!res.ok) throw new Error('cloud set failed: ' + res.status);
+}
+
 async function loadData(){
-  const raw = await storageGet(STORAGE_KEY);
-  data = raw ? JSON.parse(raw) : defaultData();
+  // 1. Show something instantly from the local cache (if any) so the UI isn't blank while we fetch.
+  try{
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if(cached) data = JSON.parse(cached);
+  }catch(e){}
+
+  if(CLOUD_ON){
+    try{
+      const record = await cloudGet();
+      data = (record && record.checklist) ? record : (data || defaultData());
+      setSyncStatus('☁ synced', true);
+    }catch(e){
+      if(!data){
+        const nativeRaw = await nativeStorageGet(STORAGE_KEY);
+        data = nativeRaw ? JSON.parse(nativeRaw) : defaultData();
+      }
+      setSyncStatus('⚠ offline — using local copy', false);
+    }
+  } else {
+    if(!data){
+      const nativeRaw = await nativeStorageGet(STORAGE_KEY);
+      data = nativeRaw ? JSON.parse(nativeRaw) : defaultData();
+    }
+    setSyncStatus('⚠ cloud sync not set up — saving to this device only', false);
+  }
+
   document.getElementById('notesArea').value = data.notes || '';
   render();
 }
+
 let saveTimer;
 function saveData(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>{ storageSet(STORAGE_KEY, JSON.stringify(data)); }, 300);
+  saveTimer = setTimeout(async ()=>{
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
+    nativeStorageSet(STORAGE_KEY, JSON.stringify(data));
+    if(CLOUD_ON){
+      try{ await cloudSet(data); setSyncStatus('☁ synced', true); }
+      catch(e){ setSyncStatus('⚠ save failed — will retry next edit', false); }
+    }
+  }, 500);
 }
 function escapeHtml(str){ const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
 function parseNum(v){ const n = parseFloat(String(v).replace(/[^0-9.-]/g,'')); return isNaN(n) ? 0 : n; }
