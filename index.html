@@ -28,8 +28,9 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Roboto',sans-s
 h1{font-weight:900;font-size:clamp(1.5rem,5vw,2.1rem);margin:0 0 0.3rem;letter-spacing:-0.01em;}
 .route{font-size:0.82rem;color:var(--muted);font-weight:400;}
 
-.tabs{display:flex;gap:0.35rem;max-width:820px;margin:1.1rem auto 0;padding:0 1.2rem;overflow-x:auto;}
-.tab-btn{flex:1;min-width:80px;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-family:'Roboto',sans-serif;font-weight:500;font-size:0.82rem;padding:0.55rem 0.5rem;border-radius:8px 8px 0 0;cursor:pointer;border-bottom:none;}
+.tabs{display:flex;gap:0.4rem;max-width:820px;margin:1.1rem auto 0;padding:0 1.2rem 0.3rem;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab-btn{flex:none;white-space:nowrap;scroll-snap-align:start;background:var(--surface);border:1px solid var(--border);color:var(--muted);font-family:'Roboto',sans-serif;font-weight:500;font-size:0.82rem;padding:0.55rem 1.1rem;border-radius:8px 8px 0 0;cursor:pointer;border-bottom:none;}
 .tab-btn.active{color:var(--text);background:var(--surface-2);box-shadow:inset 0 2px 0 var(--accent);}
 
 .wrap{max-width:820px;margin:0 auto;padding:1.1rem 1.2rem 0;}
@@ -78,6 +79,28 @@ h1{font-weight:900;font-size:clamp(1.5rem,5vw,2.1rem);margin:0 0 0.3rem;letter-s
 .cost-input::placeholder{color:var(--muted);}
 .item-del{border:none;background:none;color:var(--border);cursor:pointer;font-size:0.85rem;padding:0 0.15rem;flex:none;}
 .item:hover .item-del{color:var(--muted);}
+
+.drag-handle{cursor:grab;color:var(--muted);font-size:0.8rem;flex:none;touch-action:none;user-select:none;padding:0 0.1rem;opacity:0.55;letter-spacing:-1px;}
+.drag-handle:active{cursor:grabbing;}
+.sortable-ghost{opacity:0.35;}
+.sortable-chosen .cat-head, .sortable-chosen .group-head{background:var(--surface-2);}
+
+.date-add{border:1px dashed var(--border);background:none;color:var(--muted);font-size:0.68rem;border-radius:5px;padding:0.2rem 0.45rem;cursor:pointer;flex:none;font-family:'Roboto',sans-serif;}
+.date-add:hover{color:var(--accent);border-color:var(--accent);}
+.date-remove{border:none;background:none;color:var(--border);cursor:pointer;font-size:0.7rem;padding:0 0.1rem;flex:none;}
+.item:hover .date-remove{color:var(--muted);}
+
+.group{margin:0.5rem 0 0.15rem 0.3rem;border-left:2px solid var(--border);padding-left:0.6rem;}
+.group-head{display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;}
+.group-title{font-weight:600;font-size:0.85rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:4px;padding:0 0.2rem;margin:0 -0.2rem;}
+.group-title:focus{outline:none;background:rgba(255,255,255,0.06);}
+.group-body{padding-left:0.15rem;}
+.group-body.collapsed{display:none;}
+
+.add-group-row{display:flex;gap:0.5rem;margin-top:0.7rem;padding-top:0.6rem;border-top:1px dashed var(--border);}
+.add-group-row input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.6rem;font-size:0.8rem;color:var(--text);font-family:'Roboto',sans-serif;}
+.add-group-row input:focus{outline:none;border-color:var(--secondary);}
+.add-group-row button{border:none;background:none;color:var(--secondary);font-weight:500;font-size:0.8rem;cursor:pointer;white-space:nowrap;}
 
 .add-item-row{display:flex;gap:0.5rem;margin-top:0.4rem;padding-top:0.5rem;flex-wrap:wrap;}
 .add-item-row input[type=text]{flex:1;min-width:100px;border:none;border-bottom:1px solid var(--border);padding:0.35rem 0.2rem;font-family:'Roboto',sans-serif;font-size:0.86rem;background:transparent;color:var(--text);}
@@ -232,6 +255,7 @@ h1{font-weight:900;font-size:clamp(1.5rem,5vw,2.1rem);margin:0 0 0.3rem;letter-s
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script>
 /* ===================== REUSABLE TEMPLATE CONFIG ===================== */
 /* Swap these values to reuse this tracker for someone else's move.     */
@@ -305,22 +329,35 @@ let calViewYear, calViewMonth;
 (() => { const d = new Date(); calViewYear = d.getFullYear(); calViewMonth = d.getMonth(); })();
 let calSelectedDate = null;
 let pendingDeleteCat = null;
+let pendingDeleteGroup = null;
 let resetArmed = false;
 
 function uid(){ return 'i' + (idCounter++) + '_' + Math.random().toString(36).slice(2,7); }
 
+function collectAllItems(cat){
+  let out = (cat.items || []).slice();
+  (cat.groups || []).forEach(g => { out = out.concat(g.items || []); });
+  return out;
+}
+function findItemLocation(kind, catId, groupId, itemId){
+  const cat = (data[kind] || []).find(c => c.id === catId);
+  if(!cat) return null;
+  let arr;
+  if(groupId){
+    const group = (cat.groups || []).find(g => g.id === groupId);
+    if(!group) return null;
+    arr = group.items;
+  } else {
+    arr = cat.items;
+  }
+  if(!arr) return null;
+  const item = arr.find(i => i.id === itemId);
+  return item ? { cat, arr, item } : null;
+}
+
 const defaultData = () => ({
-  checklist: [
-    { id:'documents', title:'Documents', collapsed:false, items:[] },
-    { id:'visa', title:'Visa', collapsed:false, items:[] },
-    { id:'finance', title:'Finance', collapsed:false, items:[] },
-    { id:'personal', title:'Personal', collapsed:false, items:[] }
-  ],
-  shopping: [
-    { id:'toiletries', title:'Toiletries', collapsed:false, items:[] },
-    { id:'medicines', title:'Medicines', collapsed:false, items:[] },
-    { id:'packing', title:'Packing Items', collapsed:false, items:[] }
-  ],
+  checklist: [],
+  shopping: [],
   accommodation: [],
   notes: ''
 });
@@ -347,6 +384,27 @@ async function nativeStorageSet(key, value){
   return false;
 }
 
+// Fills in any missing top-level or nested keys from defaultData() without
+// touching existing data. Safe to call every load, forever — this is what
+// lets new features get added later without resetting anyone's saved data.
+function mergeWithDefaults(record){
+  const base = defaultData();
+  if(!record || typeof record !== 'object') return base;
+  const merged = Object.assign({}, base, record);
+  if(!Array.isArray(merged.checklist)) merged.checklist = base.checklist;
+  if(!Array.isArray(merged.shopping)) merged.shopping = base.shopping;
+  if(!Array.isArray(merged.accommodation)) merged.accommodation = base.accommodation;
+  if(typeof merged.notes !== 'string') merged.notes = base.notes;
+  ['checklist','shopping'].forEach(kind=>{
+    merged[kind].forEach(cat=>{
+      cat.items = cat.items || [];
+      cat.groups = cat.groups || [];
+      cat.groups.forEach(g=>{ g.items = g.items || []; });
+    });
+  });
+  return merged;
+}
+
 async function cloudGet(){
   const res = await fetch('/api/data');
   if(!res.ok) throw new Error('cloud get failed: ' + res.status);
@@ -371,12 +429,12 @@ async function loadData(){
 
   try{
     const record = await cloudGet();
-    data = (record && record.checklist) ? record : (data || defaultData());
+    data = mergeWithDefaults(record || data);
     setSyncStatus('☁ synced', true);
   }catch(e){
     if(!data){
       const nativeRaw = await nativeStorageGet(STORAGE_KEY);
-      data = nativeRaw ? JSON.parse(nativeRaw) : defaultData();
+      data = nativeRaw ? mergeWithDefaults(JSON.parse(nativeRaw)) : defaultData();
     }
     setSyncStatus('⚠ offline — using local copy', false);
   }
@@ -418,55 +476,96 @@ document.querySelectorAll('.subnav-btn').forEach(btn=>{
 });
 
 /* ===================== CATEGORY LIST (checklist & shopping share this) ===================== */
+function renderItemRow(item, kind, catId, groupId){
+  const groupAttr = groupId || '';
+  if(kind === 'checklist'){
+    const dateHtml = (item.dueDate === undefined || item.dueDate === null)
+      ? `<button class="date-add" data-dateadd="${item.id}" data-cat="${catId}" data-group="${groupAttr}" title="Add a date">📅 date</button>`
+      : `<input type="date" class="date-input" data-dateitem="${item.id}" data-cat="${catId}" data-group="${groupAttr}" value="${item.dueDate}">
+         <button class="date-remove" data-datedel="${item.id}" data-cat="${catId}" data-group="${groupAttr}" title="Remove date">✕</button>`;
+    return `
+      <div class="item" data-id="${item.id}">
+        <span class="drag-handle item-handle">⋮⋮</span>
+        <div class="check ${item.done ? 'checked' : ''}" data-check="${item.id}" data-cat="${catId}" data-group="${groupAttr}" data-kind="checklist"></div>
+        <div class="item-text ${item.done ? 'done' : ''}" contenteditable="true" spellcheck="false" data-edit="${item.id}" data-editcat="${catId}" data-editgroup="${groupAttr}" data-kind="checklist">${escapeHtml(item.text)}</div>
+        ${dateHtml}
+        <button class="item-del" data-del="${item.id}" data-cat="${catId}" data-group="${groupAttr}" data-kind="checklist" title="Delete">✕</button>
+      </div>`;
+  } else {
+    return `
+      <div class="item" data-id="${item.id}">
+        <span class="drag-handle item-handle">⋮⋮</span>
+        <div class="check ${item.done ? 'checked' : ''}" data-check="${item.id}" data-cat="${catId}" data-group="${groupAttr}" data-kind="shopping"></div>
+        <div class="item-text ${item.done ? 'done' : ''}" contenteditable="true" spellcheck="false" data-edit="${item.id}" data-editcat="${catId}" data-editgroup="${groupAttr}" data-kind="shopping">${escapeHtml(item.text)}</div>
+        <input type="text" class="cost-input" placeholder="₹ INR" data-cost="inr" data-item="${item.id}" data-cat="${catId}" data-group="${groupAttr}" value="${escapeHtml(item.inr || '')}">
+        <input type="text" class="cost-input" placeholder="£ GBP" data-cost="gbp" data-item="${item.id}" data-cat="${catId}" data-group="${groupAttr}" value="${escapeHtml(item.gbp || '')}">
+        <button class="item-del" data-del="${item.id}" data-cat="${catId}" data-group="${groupAttr}" data-kind="shopping" title="Delete">✕</button>
+      </div>`;
+  }
+}
+
+function renderAddItemRowHtml(kind, catId, groupId){
+  const groupAttr = groupId || '';
+  const costFields = kind === 'shopping'
+    ? `<input type="text" class="add-cost new-item-inr" placeholder="₹">
+       <input type="text" class="add-cost new-item-gbp" placeholder="£">`
+    : '';
+  return `
+    <div class="add-item-row" data-cat="${catId}" data-group="${groupAttr}">
+      <input type="text" class="new-item-text" placeholder="Add an item…">
+      ${costFields}
+      <button class="add-item-btn">Add</button>
+    </div>`;
+}
+
+function renderGroupHtml(group, kind, catId){
+  const items = group.items || [];
+  const itemsHtml = items.map(it => renderItemRow(it, kind, catId, group.id)).join('');
+  const emptyMsg = items.length ? '' : '<div class="empty-cat">Nothing here yet.</div>';
+  const delKey = kind + ':' + catId + ':' + group.id;
+  const actionsHtml = pendingDeleteGroup === delKey
+    ? `<button class="cat-confirm" data-groupconfirm="${group.id}" data-cat="${catId}" data-kind="${kind}">Delete?</button><button class="cat-cancel" data-groupcancel="${group.id}" data-cat="${catId}" data-kind="${kind}">Cancel</button>`
+    : `<button class="cat-del" data-groupdel="${group.id}" data-cat="${catId}" data-kind="${kind}" title="Delete group">🗑</button>`;
+  return `
+    <div class="group" data-groupid="${group.id}">
+      <div class="group-head">
+        <span class="drag-handle group-handle">⋮⋮</span>
+        <button class="cat-arrow ${group.collapsed ? 'collapsed' : ''}" data-grouparrow="${group.id}" data-cat="${catId}" data-kind="${kind}">▼</button>
+        <span class="group-title" contenteditable="true" spellcheck="false" data-grouptitle="${group.id}" data-cat="${catId}" data-kind="${kind}">${escapeHtml(group.title)}</span>
+        <div class="cat-actions">${actionsHtml}</div>
+      </div>
+      <div class="group-body ${group.collapsed ? 'collapsed' : ''}">
+        ${emptyMsg}
+        <div class="item-list" data-cat="${catId}" data-group="${group.id}" data-kind="${kind}">${itemsHtml}</div>
+        ${renderAddItemRowHtml(kind, catId, group.id)}
+      </div>
+    </div>`;
+}
+
 function renderCategoryGroup(kind){
   const containerId = kind === 'checklist' ? 'checklistCategories' : 'shoppingCategories';
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   data[kind].forEach(cat=>{
+    cat.groups = cat.groups || [];
+    cat.items = cat.items || [];
     const catEl = document.createElement('div');
     catEl.className = 'category';
-    const remaining = cat.items.filter(i=>!i.done).length;
+    catEl.dataset.catid = cat.id;
+    const remaining = collectAllItems(cat).filter(i=>!i.done).length;
     const delKey = kind+':'+cat.id;
     const actionsHtml = pendingDeleteCat === delKey
       ? `<button class="cat-confirm" data-catconfirm="${cat.id}" data-kind="${kind}">Delete?</button><button class="cat-cancel" data-catcancel="${cat.id}" data-kind="${kind}">Cancel</button>`
       : `<button class="cat-del" data-catdel="${cat.id}" data-kind="${kind}" title="Delete section">🗑</button>`;
 
-    const itemsHtml = cat.items.length ? cat.items.map(item => {
-      if(kind === 'checklist'){
-        return `
-          <div class="item" data-id="${item.id}">
-            <div class="check ${item.done ? 'checked' : ''}" data-check="${item.id}" data-cat="${cat.id}" data-kind="checklist"></div>
-            <div class="item-text ${item.done ? 'done' : ''}" contenteditable="true" spellcheck="false" data-edit="${item.id}" data-editcat="${cat.id}" data-kind="checklist">${escapeHtml(item.text)}</div>
-            <input type="date" class="date-input" data-dateitem="${item.id}" data-cat="${cat.id}" value="${item.dueDate || ''}">
-            <button class="item-del" data-del="${item.id}" data-cat="${cat.id}" data-kind="checklist" title="Delete">✕</button>
-          </div>`;
-      } else {
-        return `
-          <div class="item" data-id="${item.id}">
-            <div class="check ${item.done ? 'checked' : ''}" data-check="${item.id}" data-cat="${cat.id}" data-kind="shopping"></div>
-            <div class="item-text ${item.done ? 'done' : ''}" contenteditable="true" spellcheck="false" data-edit="${item.id}" data-editcat="${cat.id}" data-kind="shopping">${escapeHtml(item.text)}</div>
-            <input type="text" class="cost-input" placeholder="₹ INR" data-cost="inr" data-item="${item.id}" data-cat="${cat.id}" value="${escapeHtml(item.inr || '')}">
-            <input type="text" class="cost-input" placeholder="£ GBP" data-cost="gbp" data-item="${item.id}" data-cat="${cat.id}" value="${escapeHtml(item.gbp || '')}">
-            <button class="item-del" data-del="${item.id}" data-cat="${cat.id}" data-kind="shopping" title="Delete">✕</button>
-          </div>`;
-      }
-    }).join('') : '<div class="empty-cat">Nothing here yet.</div>';
-
-    const addRowHtml = kind === 'checklist'
-      ? `<div class="add-item-row">
-           <input type="text" placeholder="Add an item…" data-input="${cat.id}" data-kind="checklist">
-           <button data-add="${cat.id}" data-kind="checklist">Add</button>
-         </div>`
-      : `<div class="add-item-row">
-           <input type="text" placeholder="Add an item…" data-input="${cat.id}" data-kind="shopping">
-           <input type="text" class="add-cost" placeholder="₹" data-inputinr="${cat.id}">
-           <input type="text" class="add-cost" placeholder="£" data-inputgbp="${cat.id}">
-           <button data-add="${cat.id}" data-kind="shopping">Add</button>
-         </div>`;
+    const itemsHtml = cat.items.map(item => renderItemRow(item, kind, cat.id, null)).join('');
+    const groupsHtml = cat.groups.map(g => renderGroupHtml(g, kind, cat.id)).join('');
+    const wholeEmpty = (!cat.items.length && !cat.groups.length) ? '<div class="empty-cat">Nothing here yet.</div>' : '';
 
     catEl.innerHTML = `
       <div class="cat-head">
         <div class="cat-head-left">
+          <span class="drag-handle cat-handle">⋮⋮</span>
           <button class="cat-arrow ${cat.collapsed ? 'collapsed' : ''}" data-arrow="${cat.id}" data-kind="${kind}">▼</button>
           <span class="cat-title" contenteditable="true" spellcheck="false" data-cattitle="${cat.id}" data-kind="${kind}">${escapeHtml(cat.title)}</span>
           <span class="cat-badge">${remaining} left</span>
@@ -474,8 +573,14 @@ function renderCategoryGroup(kind){
         <div class="cat-actions">${actionsHtml}</div>
       </div>
       <div class="cat-body ${cat.collapsed ? 'collapsed' : ''}" data-body="${cat.id}">
-        ${itemsHtml}
-        ${addRowHtml}
+        ${wholeEmpty}
+        <div class="item-list" data-cat="${cat.id}" data-group="" data-kind="${kind}">${itemsHtml}</div>
+        ${renderAddItemRowHtml(kind, cat.id, null)}
+        <div class="groups-list" data-cat="${cat.id}" data-kind="${kind}">${groupsHtml}</div>
+        <div class="add-group-row">
+          <input type="text" class="new-group-text" placeholder="Add a group…">
+          <button class="add-group-btn">+ Group</button>
+        </div>
       </div>
     `;
     container.appendChild(catEl);
@@ -496,6 +601,15 @@ function attachCategoryEvents(kind){
       render(); saveData();
     };
   });
+  scope.querySelectorAll('[data-grouparrow]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const cat = data[kind].find(c=>c.id===btn.dataset.cat);
+      const group = cat.groups.find(g=>g.id===btn.dataset.grouparrow);
+      group.collapsed = !group.collapsed;
+      render(); saveData();
+    };
+  });
   scope.querySelectorAll('[data-catdel]').forEach(btn=>{
     btn.onclick = (e)=>{ e.stopPropagation(); pendingDeleteCat = kind+':'+btn.dataset.catdel; render(); };
   });
@@ -510,13 +624,27 @@ function attachCategoryEvents(kind){
   scope.querySelectorAll('[data-catcancel]').forEach(btn=>{
     btn.onclick = (e)=>{ e.stopPropagation(); pendingDeleteCat = null; render(); };
   });
+  scope.querySelectorAll('[data-groupdel]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); pendingDeleteGroup = kind+':'+btn.dataset.cat+':'+btn.dataset.groupdel; render(); };
+  });
+  scope.querySelectorAll('[data-groupconfirm]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const cat = data[kind].find(c=>c.id===btn.dataset.cat);
+      cat.groups = cat.groups.filter(g=>g.id!==btn.dataset.groupconfirm);
+      pendingDeleteGroup = null;
+      render(); saveData();
+    };
+  });
+  scope.querySelectorAll('[data-groupcancel]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); pendingDeleteGroup = null; render(); };
+  });
   scope.querySelectorAll('[data-check]').forEach(chk=>{
     chk.onclick = (e)=>{
       e.stopPropagation();
-      const id = chk.dataset.check, catId = chk.dataset.cat;
-      const cat = data[kind].find(c=>c.id===catId);
-      const item = cat.items.find(i=>i.id===id);
-      item.done = !item.done;
+      const loc = findItemLocation(kind, chk.dataset.cat, chk.dataset.group || null, chk.dataset.check);
+      if(!loc) return;
+      loc.item.done = !loc.item.done;
       render(); saveData();
     };
   });
@@ -524,12 +652,11 @@ function attachCategoryEvents(kind){
     el.onclick = (e)=> e.stopPropagation();
     el.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
     el.onblur = ()=>{
-      const id = el.dataset.edit, catId = el.dataset.editcat;
-      const cat = data[kind].find(c=>c.id===catId);
-      const item = cat.items.find(i=>i.id===id);
+      const loc = findItemLocation(kind, el.dataset.editcat, el.dataset.editgroup || null, el.dataset.edit);
+      if(!loc) return;
       const val = el.textContent.trim();
-      if(val && val !== item.text){ item.text = val; saveData(); if(kind==='checklist') renderCalendar(); }
-      else if(!val){ el.textContent = item.text; }
+      if(val && val !== loc.item.text){ loc.item.text = val; saveData(); if(kind==='checklist') renderCalendar(); }
+      else if(!val){ el.textContent = loc.item.text; }
     };
   });
   scope.querySelectorAll('[data-cattitle]').forEach(el=>{
@@ -543,57 +670,150 @@ function attachCategoryEvents(kind){
       else if(!val){ el.textContent = cat.title; }
     };
   });
+  scope.querySelectorAll('[data-grouptitle]').forEach(el=>{
+    el.onclick = (e)=> e.stopPropagation();
+    el.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
+    el.onblur = ()=>{
+      const cat = data[kind].find(c=>c.id===el.dataset.cat);
+      const group = cat.groups.find(g=>g.id===el.dataset.grouptitle);
+      const val = el.textContent.trim();
+      if(val && val !== group.title){ group.title = val; saveData(); }
+      else if(!val){ el.textContent = group.title; }
+    };
+  });
+  scope.querySelectorAll('[data-dateadd]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const loc = findItemLocation('checklist', btn.dataset.cat, btn.dataset.group || null, btn.dataset.dateadd);
+      if(!loc) return;
+      loc.item.dueDate = '';
+      render(); saveData();
+      const inp = scope.querySelector(`[data-dateitem="${loc.item.id}"]`);
+      if(inp) inp.focus();
+    };
+  });
+  scope.querySelectorAll('[data-datedel]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const loc = findItemLocation('checklist', btn.dataset.cat, btn.dataset.group || null, btn.dataset.datedel);
+      if(!loc) return;
+      loc.item.dueDate = null;
+      render(); saveData(); renderCalendar();
+    };
+  });
   scope.querySelectorAll('[data-dateitem]').forEach(inp=>{
     inp.onclick = (e)=> e.stopPropagation();
     inp.onchange = (e)=>{
       e.stopPropagation();
-      const id = inp.dataset.dateitem, catId = inp.dataset.cat;
-      const cat = data.checklist.find(c=>c.id===catId);
-      const item = cat.items.find(i=>i.id===id);
-      item.dueDate = inp.value || null;
+      const loc = findItemLocation('checklist', inp.dataset.cat, inp.dataset.group || null, inp.dataset.dateitem);
+      if(!loc) return;
+      loc.item.dueDate = inp.value || '';
       saveData(); renderCalendar();
     };
   });
   scope.querySelectorAll('[data-cost]').forEach(inp=>{
     inp.onclick = (e)=> e.stopPropagation();
     inp.oninput = ()=>{
-      const catId = inp.dataset.cat, itemId = inp.dataset.item, field = inp.dataset.cost;
-      const cat = data.shopping.find(c=>c.id===catId);
-      const item = cat.items.find(i=>i.id===itemId);
-      item[field] = inp.value;
+      const loc = findItemLocation('shopping', inp.dataset.cat, inp.dataset.group || null, inp.dataset.item);
+      if(!loc) return;
+      loc.item[inp.dataset.cost] = inp.value;
       saveData(); updateSpentTotals();
     };
   });
   scope.querySelectorAll('[data-del]').forEach(btn=>{
     btn.onclick = (e)=>{
       e.stopPropagation();
-      const id = btn.dataset.del, catId = btn.dataset.cat;
-      const cat = data[kind].find(c=>c.id===catId);
-      cat.items = cat.items.filter(i=>i.id!==id);
+      const loc = findItemLocation(kind, btn.dataset.cat, btn.dataset.group || null, btn.dataset.del);
+      if(!loc) return;
+      loc.arr.splice(loc.arr.indexOf(loc.item), 1);
       render(); saveData();
     };
   });
-  scope.querySelectorAll('[data-add]').forEach(btn=>{
+  scope.querySelectorAll('.add-item-row').forEach(row=>{
+    const btn = row.querySelector('.add-item-btn');
+    const textInp = row.querySelector('.new-item-text');
     btn.onclick = ()=>{
-      const catId = btn.dataset.add;
+      const catId = row.dataset.cat, groupId = row.dataset.group || null;
       const cat = data[kind].find(c=>c.id===catId);
-      const input = scope.querySelector(`[data-input="${catId}"]`);
-      const val = input.value.trim();
+      if(!cat) return;
+      const target = groupId ? ((cat.groups.find(g=>g.id===groupId) || {}).items) : cat.items;
+      if(!target) return;
+      const val = textInp.value.trim();
       if(!val) return;
       if(kind === 'checklist'){
-        cat.items.push({id:uid(), text:val, done:false, dueDate:null});
+        target.push({id:uid(), text:val, done:false, dueDate:null});
       } else {
-        const inrInp = scope.querySelector(`[data-inputinr="${catId}"]`);
-        const gbpInp = scope.querySelector(`[data-inputgbp="${catId}"]`);
-        cat.items.push({id:uid(), text:val, done:false, inr: inrInp.value.trim(), gbp: gbpInp.value.trim()});
+        const inr = row.querySelector('.new-item-inr').value.trim();
+        const gbp = row.querySelector('.new-item-gbp').value.trim();
+        target.push({id:uid(), text:val, done:false, inr, gbp});
       }
       render(); saveData();
-      const freshInput = scope.querySelector(`[data-input="${catId}"]`);
-      if(freshInput) freshInput.focus();
     };
+    textInp.onkeydown = (e)=>{ if(e.key==='Enter') btn.click(); };
   });
-  scope.querySelectorAll('[data-input]').forEach(inp=>{
-    inp.onkeydown = (e)=>{ if(e.key==='Enter') scope.querySelector(`[data-add="${inp.dataset.input}"]`).click(); };
+  scope.querySelectorAll('.add-group-row').forEach(row=>{
+    const catEl = row.closest('.category');
+    if(!catEl) return;
+    const catId = catEl.dataset.catid;
+    const btn = row.querySelector('.add-group-btn');
+    const textInp = row.querySelector('.new-group-text');
+    btn.onclick = ()=>{
+      const val = textInp.value.trim();
+      if(!val) return;
+      const cat = data[kind].find(c=>c.id===catId);
+      cat.groups = cat.groups || [];
+      cat.groups.push({id:'grp_'+uid(), title:val, collapsed:false, items:[]});
+      render(); saveData();
+    };
+    textInp.onkeydown = (e)=>{ if(e.key==='Enter') btn.click(); };
+  });
+}
+
+let sortableInstances = [];
+function initSortables(){
+  if(typeof Sortable === 'undefined') return;
+  sortableInstances.forEach(s=>{ try{ s.destroy(); }catch(e){} });
+  sortableInstances = [];
+  ['checklist','shopping'].forEach(kind=>{
+    const containerId = kind === 'checklist' ? 'checklistCategories' : 'shoppingCategories';
+    const container = document.getElementById(containerId);
+    if(!container) return;
+    sortableInstances.push(new Sortable(container, {
+      handle: '.cat-handle', animation: 150, filter: 'input, [contenteditable]', preventOnFilter: false,
+      onEnd: ()=>{
+        const newOrder = Array.from(container.children).map(el=>el.dataset.catid);
+        data[kind].sort((a,b)=> newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+        saveData();
+      }
+    }));
+    container.querySelectorAll('.item-list').forEach(list=>{
+      sortableInstances.push(new Sortable(list, {
+        handle: '.item-handle', animation: 150,
+        onEnd: ()=>{
+          const catId = list.dataset.cat, groupId = list.dataset.group || null;
+          const cat = data[kind].find(c=>c.id===catId);
+          if(!cat) return;
+          const arr = groupId ? ((cat.groups.find(g=>g.id===groupId) || {}).items) : cat.items;
+          if(!arr) return;
+          const newOrder = Array.from(list.children).map(el=>el.dataset.id);
+          arr.sort((a,b)=> newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+          saveData();
+        }
+      }));
+    });
+    container.querySelectorAll('.groups-list').forEach(list=>{
+      sortableInstances.push(new Sortable(list, {
+        handle: '.group-handle', animation: 150,
+        onEnd: ()=>{
+          const catId = list.dataset.cat;
+          const cat = data[kind].find(c=>c.id===catId);
+          if(!cat) return;
+          const newOrder = Array.from(list.children).map(el=>el.dataset.groupid);
+          cat.groups.sort((a,b)=> newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+          saveData();
+        }
+      }));
+    });
   });
 }
 
@@ -604,7 +824,7 @@ document.querySelectorAll('[data-addcat]').forEach(btn=>{
     const input = document.getElementById(inputId);
     const val = input.value.trim();
     if(!val) return;
-    data[kind].push({id:'cat_'+uid(), title:val, collapsed:false, items:[]});
+    data[kind].push({id:'cat_'+uid(), title:val, collapsed:false, items:[], groups:[]});
     input.value=''; render(); saveData();
   };
 });
@@ -614,7 +834,7 @@ document.getElementById('newShopCatInput').onkeydown = (e)=>{ if(e.key==='Enter'
 /* ===================== PROGRESS METER (checklist only) ===================== */
 function totalCounts(){
   let done=0, total=0;
-  data.checklist.forEach(c=>{ c.items.forEach(i=>{ total++; if(i.done) done++; }); });
+  data.checklist.forEach(c=>{ collectAllItems(c).forEach(i=>{ total++; if(i.done) done++; }); });
   return {done, total};
 }
 function renderMeter(){
@@ -654,7 +874,7 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 function getAllDatedEntries(){
   const out = [];
   data.checklist.forEach(cat=>{
-    cat.items.forEach(it=>{ if(it.dueDate) out.push({id:it.id, text:it.text, catTitle:cat.title, catId:cat.id, dueDate:it.dueDate, done:it.done}); });
+    collectAllItems(cat).forEach(it=>{ if(it.dueDate) out.push({id:it.id, text:it.text, catTitle:cat.title, catId:cat.id, dueDate:it.dueDate, done:it.done}); });
   });
   return out;
 }
@@ -715,7 +935,7 @@ document.getElementById('calNext').onclick = ()=>{ calViewMonth++; if(calViewMon
 function updateSpentTotals(){
   let totalInr = 0, totalGbp = 0;
   data.shopping.forEach(cat=>{
-    cat.items.forEach(it=>{ totalInr += parseNum(it.inr); totalGbp += parseNum(it.gbp); });
+    collectAllItems(cat).forEach(it=>{ totalInr += parseNum(it.inr); totalGbp += parseNum(it.gbp); });
   });
   document.getElementById('spentInr').textContent = '₹' + totalInr.toLocaleString('en-IN');
   document.getElementById('spentGbp').textContent = '£' + totalGbp.toLocaleString('en-GB');
@@ -787,6 +1007,7 @@ function render(){
   renderCalendar();
   updateSpentTotals();
   renderAccommodation();
+  initSortables();
 }
 loadData();
 </script>
