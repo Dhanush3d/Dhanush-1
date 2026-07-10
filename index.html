@@ -244,16 +244,6 @@ const CONFIG = {
     primary: "#143D59",
     secondary: "#1ABC9C",
     accent: "#2ECC71"
-  },
-  /* CLOUD SYNC — fill these in to make data sync across devices/browsers.
-     1. Go to jsonbin.io and create a free account
-     2. Create a new bin with content: {}
-     3. Copy the Bin ID (from the bin's URL/dashboard) into binId below
-     4. Go to Account → API Keys, copy your "X-Master-Key" into apiKey below
-     Leave both blank to fall back to local-only storage (this device/browser only). */
-  cloud: {
-    binId: "",
-    apiKey: ""
   }
 };
 /* ====================================================================== */
@@ -336,9 +326,6 @@ const defaultData = () => ({
 });
 
 /* ===================== STORAGE ===================== */
-const CLOUD_ON = !!(CONFIG.cloud && CONFIG.cloud.binId && CONFIG.cloud.apiKey);
-const JSONBIN_URL = CLOUD_ON ? `https://api.jsonbin.io/v3/b/${CONFIG.cloud.binId}` : null;
-
 function setSyncStatus(text, ok){
   const el = document.getElementById('syncStatus');
   if(!el) return;
@@ -361,17 +348,15 @@ async function nativeStorageSet(key, value){
 }
 
 async function cloudGet(){
-  const res = await fetch(`${JSONBIN_URL}/latest`, {
-    headers: { 'X-Master-Key': CONFIG.cloud.apiKey }
-  });
+  const res = await fetch('/api/data');
   if(!res.ok) throw new Error('cloud get failed: ' + res.status);
   const json = await res.json();
-  return json.record;
+  return json.data;
 }
 async function cloudSet(obj){
-  const res = await fetch(JSONBIN_URL, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Master-Key': CONFIG.cloud.apiKey },
+  const res = await fetch('/api/data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(obj)
   });
   if(!res.ok) throw new Error('cloud set failed: ' + res.status);
@@ -384,24 +369,16 @@ async function loadData(){
     if(cached) data = JSON.parse(cached);
   }catch(e){}
 
-  if(CLOUD_ON){
-    try{
-      const record = await cloudGet();
-      data = (record && record.checklist) ? record : (data || defaultData());
-      setSyncStatus('☁ synced', true);
-    }catch(e){
-      if(!data){
-        const nativeRaw = await nativeStorageGet(STORAGE_KEY);
-        data = nativeRaw ? JSON.parse(nativeRaw) : defaultData();
-      }
-      setSyncStatus('⚠ offline — using local copy', false);
-    }
-  } else {
+  try{
+    const record = await cloudGet();
+    data = (record && record.checklist) ? record : (data || defaultData());
+    setSyncStatus('☁ synced', true);
+  }catch(e){
     if(!data){
       const nativeRaw = await nativeStorageGet(STORAGE_KEY);
       data = nativeRaw ? JSON.parse(nativeRaw) : defaultData();
     }
-    setSyncStatus('⚠ cloud sync not set up — saving to this device only', false);
+    setSyncStatus('⚠ offline — using local copy', false);
   }
 
   document.getElementById('notesArea').value = data.notes || '';
@@ -414,10 +391,8 @@ function saveData(){
   saveTimer = setTimeout(async ()=>{
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
     nativeStorageSet(STORAGE_KEY, JSON.stringify(data));
-    if(CLOUD_ON){
-      try{ await cloudSet(data); setSyncStatus('☁ synced', true); }
-      catch(e){ setSyncStatus('⚠ save failed — will retry next edit', false); }
-    }
+    try{ await cloudSet(data); setSyncStatus('☁ synced', true); }
+    catch(e){ setSyncStatus('⚠ save failed — will retry next edit', false); }
   }, 500);
 }
 function escapeHtml(str){ const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
