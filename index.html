@@ -450,19 +450,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
         </div>
       </div>
 
-      <!-- ASSIGNMENT (static) -->
-      <div class="panel">
-        <div class="panel-title" style="margin-bottom:0.7rem;">Assignment</div>
-        <div class="mini-table-wrap">
-          <table class="mini-table">
-            <tr><th>#</th><th>Task name</th><th>Status</th><th>Due</th><th>Priority</th><th>Note</th></tr>
-            <tr><td>1</td><td>Karban View</td><td>–</td><td>–</td><td>–</td><td class="note-cell">–</td></tr>
-            <tr><td>2</td><td>Write Research Paper</td><td><span class="pill pill-done">Done</span></td><td>2024/11/20</td><td><span class="pill pill-high">High</span></td><td class="note-cell">Need to gather sources on climate change.</td></tr>
-            <tr><td>3</td><td>Submit Job Application</td><td><span class="pill pill-todo">ToDo</span></td><td>2024/11/30</td><td><span class="pill pill-high">High</span></td><td class="note-cell">Applied to XYZ Company.</td></tr>
-          </table>
-        </div>
-      </div>
-
       <!-- APPLICATION TRACKER (static) -->
       <div class="panel">
         <div class="panel-title" style="margin-bottom:0.7rem;">Application Tracker</div>
@@ -470,9 +457,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
           <table class="mini-table">
             <tr><th>#</th><th>Company</th><th>Role</th><th>Status</th><th>Salary Range</th><th>Date Applied</th></tr>
             <tr><td>1</td><td>Google (UK)</td><td>Product Manager</td><td><span class="pill pill-working">Working</span></td><td>£80k – £120k</td><td>2024/08/01</td></tr>
-            <tr><td>2</td><td>Spotify</td><td>Song Source Engineer</td><td><span class="pill pill-applied">Applied</span></td><td>£60k – £90k</td><td>2024/08/12</td></tr>
-            <tr><td>3</td><td>Adobe</td><td>Exp. Data Analyst</td><td><span class="pill pill-interviewing">Interviewing</span></td><td>£70k – £110k</td><td>2024/08/22</td></tr>
-            <tr><td>4</td><td>Startup (Acme)</td><td>Marketing Lead</td><td><span class="pill pill-rejected">Rejected</span></td><td>–</td><td>2024/08/22</td></tr>
           </table>
         </div>
       </div>
@@ -738,16 +722,16 @@ const defaultData = () => ({
   shopping: [],
   accommodation: [],
   travel: {
-    activeTripId: 'trip_tokyo_default',
+    activeTripId: 'trip_UK_default',
     trips: [
       {
-        id: 'trip_tokyo_default',
-        name: 'Tokyo Trip',
-        range: 'Dec 1 – Dec 5',
+        id: 'trip_UK_default',
+        name: 'UK',
+        range: 'Sept 6 – Sept 10',
         flight: [
           {id: uid(), text: 'Flight number: NH801'},
-          {id: uid(), text: 'Departure: Los Angeles International Airport (LAX) at 10:00'},
-          {id: uid(), text: 'Arrival: Narita International Airport (NRT) at 2:30 PM'}
+          {id: uid(), text: 'Departure: Bangalore,IN at 10:00'},
+          {id: uid(), text: 'Arrival: London,Uk at 2:30 PM'}
         ],
         stay: [
           {id: uid(), text: 'Hotel ABC Tokyo, 1-2-3 Shinjuku, Tokyo, Japan'}
@@ -1180,29 +1164,6 @@ function renderTripProgress(){
   else if(pct === 100) msgEl.textContent = "All done!";
   else if(pct >= 50) msgEl.textContent = "You're doing great!";
   else msgEl.textContent = "Keep it up!";
-}
-
-/* ===================== RESET ===================== */
-function renderResetRow(){
-  const row = document.getElementById('resetRow');
-  if(resetArmed){
-    row.innerHTML = `<span class="reset-link armed" id="resetLink">Tap to confirm — wipes everything</span><span class="reset-cancel" id="resetCancel">cancel</span>`;
-  } else {
-    row.innerHTML = `<span class="reset-link" id="resetLink">reset all data</span>`;
-  }
-  document.getElementById('resetLink').onclick = ()=>{
-    if(resetArmed){
-      data = defaultData();
-      resetArmed = false;
-      document.getElementById('notesArea').value = '';
-      render(); saveData();
-    } else {
-      resetArmed = true;
-      renderResetRow();
-    }
-  };
-  const cancelEl = document.getElementById('resetCancel');
-  if(cancelEl) cancelEl.onclick = ()=>{ resetArmed = false; renderResetRow(); };
 }
 
 /* ===================== CALENDAR (built from checklist due dates) ===================== */
@@ -1642,17 +1603,39 @@ document.getElementById('notesArea').addEventListener('input', (e)=>{
   clearTimeout(notesSaveTimer);
   notesSaveTimer = setTimeout(saveData, 300);
 });
+/* ===================== RESET ===================== */
+function renderResetRow(){
+  const row = document.getElementById('resetRow');
+  if(resetArmed){
+    row.innerHTML = `<span class="reset-link armed" id="resetLink">Tap to confirm — wipes everything</span><span class="reset-cancel" id="resetCancel">cancel</span>`;
+  } else {
+    row.innerHTML = `<span class="reset-link" id="resetLink">reset all data</span>`;
+  }
+  document.getElementById('resetLink').onclick = ()=>{
+    if(resetArmed){
+      data = defaultData();
+      resetArmed = false;
+      document.getElementById('notesArea').value = '';
+      render(); saveData();
+    } else {
+      resetArmed = true;
+      renderResetRow();
+    }
+  };
+  const cancelEl = document.getElementById('resetCancel');
+  if(cancelEl) cancelEl.onclick = ()=>{ resetArmed = false; renderResetRow(); };
+}
 
 /* ===================== MASTER RENDER ===================== */
 function render(){
   renderCategoryGroup('checklist');
   renderCategoryGroup('shopping');
   renderTripProgress();
-  renderResetRow();
   renderCalendar();
   updateSpentTotals();
   renderAccommodation();
   renderTravel();
+  renderResetRow();
   initSortables();
 }
 loadData();
