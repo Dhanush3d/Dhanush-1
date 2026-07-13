@@ -346,7 +346,11 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
 
     <!-- ============ LEFT COLUMN ============ -->
     <div class="col-left">
-
+<div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Checklist</div>
+          </div>
+      
       <div class="add-category">
         <input type="text" id="newCatInput" placeholder="Add a new section…">
         <button data-addcat="checklist">+ Section</button>
@@ -357,7 +361,7 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
       <!-- SHOPPING DASHBOARD -->
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-title">Shopping Dashboard</div>
+          <div class="panel-title">Shopping</div>
           <div class="currency-toggle">
             <button class="cur-btn active" data-cur="inr">INR</button>
             <button class="cur-btn" data-cur="gbp">GBP</button>
@@ -376,42 +380,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
           </div>
         </div>
       </div>
-
-      <!-- TRAVEL ITINERARY -->
-      <div class="panel">
-        <div class="itin-head-row">
-          <div class="panel-title">Travel Itinerary</div>
-          <select class="itin-select" id="itinTripSelect"></select>
-          <button class="itin-trip-del" id="itinTripDelBtn" title="Delete this trip">✕</button>
-        </div>
-        <div class="itin-trip-meta">
-          <span class="itin-trip-name" contenteditable="true" spellcheck="false" id="itinTripName"></span>
-          <span class="itin-range" contenteditable="true" spellcheck="false" id="itinTripRange"></span>
-        </div>
-
-        <div class="itin-box">
-          <div class="itin-box-title">Flight Details</div>
-          <ul class="itin-line-list" id="itinFlightList"></ul>
-          <div class="itin-line-add">
-            <input type="text" id="itinFlightInput" placeholder="Add a line…">
-            <button id="itinFlightAddBtn">Add</button>
-          </div>
-        </div>
-        <div class="itin-box">
-          <div class="itin-box-title">Accommodation</div>
-          <ul class="itin-line-list" id="itinStayList"></ul>
-          <div class="itin-line-add">
-            <input type="text" id="itinStayInput" placeholder="Add a line…">
-            <button id="itinStayAddBtn">Add</button>
-          </div>
-        </div>
-
-        <div id="itinDaysContainer"></div>
-
-        <button class="itin-add-day-btn" id="itinAddDayBtn">+ Add Day</button>
-      </div>
-
-    </div>
 
     <!-- ============ RIGHT COLUMN ============ -->
     <div class="col-right">
@@ -450,18 +418,42 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
         </div>
       </div>
 
-      <!-- ASSIGNMENT (static) -->
+      
+      <!-- TRAVEL ITINERARY -->
       <div class="panel">
-        <div class="panel-title" style="margin-bottom:0.7rem;">Assignment</div>
-        <div class="mini-table-wrap">
-          <table class="mini-table">
-            <tr><th>#</th><th>Task name</th><th>Status</th><th>Due</th><th>Priority</th><th>Note</th></tr>
-            <tr><td>1</td><td>Karban View</td><td>–</td><td>–</td><td>–</td><td class="note-cell">–</td></tr>
-            <tr><td>2</td><td>Write Research Paper</td><td><span class="pill pill-done">Done</span></td><td>2024/11/20</td><td><span class="pill pill-high">High</span></td><td class="note-cell">Need to gather sources on climate change.</td></tr>
-            <tr><td>3</td><td>Submit Job Application</td><td><span class="pill pill-todo">ToDo</span></td><td>2024/11/30</td><td><span class="pill pill-high">High</span></td><td class="note-cell">Applied to XYZ Company.</td></tr>
-          </table>
+        <div class="itin-head-row">
+          <div class="panel-title">Travel Itinerary</div>
+          <select class="itin-select" id="itinTripSelect"></select>
+          <button class="itin-trip-del" id="itinTripDelBtn" title="Delete this trip">✕</button>
         </div>
+        <div class="itin-trip-meta">
+          <span class="itin-trip-name" contenteditable="true" spellcheck="false" id="itinTripName"></span>
+          <span class="itin-range" contenteditable="true" spellcheck="false" id="itinTripRange"></span>
+        </div>
+
+        <div class="itin-box">
+          <div class="itin-box-title">Flight Details</div>
+          <ul class="itin-line-list" id="itinFlightList"></ul>
+          <div class="itin-line-add">
+            <input type="text" id="itinFlightInput" placeholder="Add a line…">
+            <button id="itinFlightAddBtn">Add</button>
+          </div>
+        </div>
+        <div class="itin-box">
+          <div class="itin-box-title">Accommodation</div>
+          <ul class="itin-line-list" id="itinStayList"></ul>
+          <div class="itin-line-add">
+            <input type="text" id="itinStayInput" placeholder="Add a line…">
+            <button id="itinStayAddBtn">Add</button>
+          </div>
+        </div>
+
+        <div id="itinDaysContainer"></div>
+
+        <button class="itin-add-day-btn" id="itinAddDayBtn">+ Add Day</button>
       </div>
+
+    </div>
 
       <!-- APPLICATION TRACKER (static) -->
       <div class="panel">
@@ -470,9 +462,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
           <table class="mini-table">
             <tr><th>#</th><th>Company</th><th>Role</th><th>Status</th><th>Salary Range</th><th>Date Applied</th></tr>
             <tr><td>1</td><td>Google (UK)</td><td>Product Manager</td><td><span class="pill pill-working">Working</span></td><td>£80k – £120k</td><td>2024/08/01</td></tr>
-            <tr><td>2</td><td>Spotify</td><td>Song Source Engineer</td><td><span class="pill pill-applied">Applied</span></td><td>£60k – £90k</td><td>2024/08/12</td></tr>
-            <tr><td>3</td><td>Adobe</td><td>Exp. Data Analyst</td><td><span class="pill pill-interviewing">Interviewing</span></td><td>£70k – £110k</td><td>2024/08/22</td></tr>
-            <tr><td>4</td><td>Startup (Acme)</td><td>Marketing Lead</td><td><span class="pill pill-rejected">Rejected</span></td><td>–</td><td>2024/08/22</td></tr>
           </table>
         </div>
       </div>
