@@ -32,7 +32,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Roboto',sans-s
 .dashboard{max-width:1440px;margin:0 auto;padding:1.5rem 1.4rem 0;}
 
 /* ---- header ---- */
-.dash-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1.3rem;background:linear-gradient(135deg, var(--primary), var(--secondary));border-radius:16px;padding:1.5rem 1.75rem;border:1px solid var(--border);}
+.dash-header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.3rem;background:linear-gradient(135deg, var(--primary), var(--secondary));border-radius:16px;padding:1.5rem 1.75rem;border:1px solid var(--border);}
 .header-left{min-width:200px;}
 .eyebrow-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.7rem;}
 .eyebrow-tag{font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.75);font-weight:700;}
@@ -42,7 +42,7 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
 .route{font-size:0.78rem;color:var(--muted);font-weight:400;margin-bottom:0.2rem;}
 .sync-status{font-size:0.78rem;font-weight:500;}
 
-.stat-row{display:flex;gap:0.7rem;flex:none;}
+.stat-row{display:flex;gap:0.7rem;flex:none;justify-content:center;align-items:center;}
 .stat-card{background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:0.85rem 1.3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:105px;}
 .stat-num{font-size:1.35rem;font-weight:900;line-height:1;}
 .stat-label{font-size:0.66rem;color:var(--muted);margin-top:0.25rem;text-align:center;}
@@ -329,11 +329,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
   <!-- HEADER -->
   <div class="dash-header">
     <div class="header-left">
-      <div class="eyebrow-row">
-        <span class="eyebrow-tag">Personal</span>
-        <span class="eyebrow-dot"></span>
-        <span class="eyebrow-tag pill">Checklist</span>
-      </div>
       <h1 id="headerTitle">Princy</h1>
       <div class="sync-status" id="syncStatus"></div>
     </div>
@@ -415,9 +410,6 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
               <div class="panel-title" style="margin-bottom:0;">Trip Progress</div>
               <div class="trip-progress-sub" id="tripSub">0 of 0 items done · 0 left</div>
             </div>
-          </div>
-          <div class="trip-progress-msg">
-            <div class="big" id="tripMsgBig">Let's get started!</div>
           </div>
         </div>
       </div>
@@ -1168,10 +1160,6 @@ function renderTripProgress(){
   const r = 34, circumference = 2 * Math.PI * r;
   circle.style.strokeDasharray = circumference;
   circle.style.strokeDashoffset = circumference * (1 - pct/100);
-  const msgEl = document.getElementById('tripMsgBig');
-  if(total === 0) msgEl.textContent = "Let's get started!";
-  else if(pct === 100) msgEl.textContent = "All done!";
-  else msgEl.textContent = "You're doing great!";
 }
 
 /* ===================== RESET ===================== */
