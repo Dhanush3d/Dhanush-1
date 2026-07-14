@@ -215,6 +215,21 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
 /* ===================== TRAVEL ITINERARY ===================== */
 .itin-head-row{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;justify-content:space-between;}
 .itin-select{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:0.35rem 0.6rem;font-family:'Roboto',sans-serif;font-size:0.78rem;}
+
+/* ---- add trip modal ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000;padding:1rem;}
+.modal-overlay.open{display:flex;}
+.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.3rem 1.4rem;width:320px;max-width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.4);}
+.modal-title{font-weight:700;font-size:1rem;margin-bottom:1rem;}
+.modal-label{display:block;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:0.35rem;}
+.modal-optional{text-transform:none;letter-spacing:0;font-weight:400;}
+.modal-input{width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:0.55rem 0.7rem;font-family:'Roboto',sans-serif;font-size:0.86rem;margin-bottom:1rem;}
+.modal-input:focus{outline:none;border-color:var(--accent);}
+.modal-actions{display:flex;justify-content:flex-end;gap:0.6rem;margin-top:0.2rem;}
+.modal-btn-cancel{background:none;border:none;color:var(--muted);font-family:'Roboto',sans-serif;font-size:0.82rem;cursor:pointer;padding:0.5rem 0.7rem;}
+.modal-btn-cancel:hover{color:var(--text);}
+.modal-btn-add{background:var(--accent);color:#08130d;border:none;border-radius:7px;padding:0.5rem 1rem;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:'Roboto',sans-serif;}
+.modal-btn-add:hover{filter:brightness(1.08);}
 .itin-range{font-size:0.72rem;color:var(--muted);}
 .itin-box{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0.7rem 0.85rem;margin-top:0.9rem;}
 .itin-box-title{font-size:0.72rem;font-weight:700;color:var(--secondary);margin-bottom:0.4rem;display:flex;align-items:center;gap:0.35rem;}
@@ -636,11 +651,26 @@ h1{font-weight:900;font-size:clamp(1.7rem,4vw,2.3rem);margin:0 0 0.25rem;letter-
 
 </div>
 
+<div class="modal-overlay" id="addTripOverlay">
+  <div class="modal-card">
+    <div class="modal-title">Add a new trip</div>
+    <label class="modal-label" for="modalTripName">Trip name</label>
+    <input type="text" class="modal-input" id="modalTripName" placeholder="e.g., Tokyo Trip">
+    <label class="modal-label" for="modalTripRange">Dates <span class="modal-optional">(optional)</span></label>
+    <input type="text" class="modal-input" id="modalTripRange" placeholder="e.g., Dec 1 – Dec 5">
+    <div class="modal-actions">
+      <button class="modal-btn-cancel" id="modalCancelBtn">Cancel</button>
+      <button class="modal-btn-add" id="modalAddBtn">Add Trip</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script>
 /* ===================== REUSABLE TEMPLATE CONFIG ===================== */
 /* Swap these values to reuse this tracker for someone else's move.     */
 const CONFIG = {
+  university: "Oxford Brookes",
   student: "Dhanush",
   departureDate: "2026-09-07",
   colors: {
@@ -1410,6 +1440,42 @@ function getActiveTrip(){
   return t.trips.find(tr=>tr.id===t.activeTripId) || t.trips[0];
 }
 
+/* ---- Add Trip modal ---- */
+function openAddTripModal(){
+  const overlay = document.getElementById('addTripOverlay');
+  document.getElementById('modalTripName').value = '';
+  document.getElementById('modalTripRange').value = '';
+  overlay.classList.add('open');
+  setTimeout(()=> document.getElementById('modalTripName').focus(), 50);
+}
+function closeAddTripModal(){
+  document.getElementById('addTripOverlay').classList.remove('open');
+}
+function confirmAddTrip(){
+  const name = document.getElementById('modalTripName').value.trim();
+  if(!name){ document.getElementById('modalTripName').focus(); return; }
+  const range = document.getElementById('modalTripRange').value.trim();
+  const newTrip = {id:'trip_'+uid(), name, range, flight:[], stay:[], days:[]};
+  data.travel.trips.push(newTrip);
+  data.travel.activeTripId = newTrip.id;
+  closeAddTripModal();
+  render(); saveData();
+}
+(function initAddTripModal(){
+  const overlay = document.getElementById('addTripOverlay');
+  document.getElementById('modalAddBtn').onclick = confirmAddTrip;
+  document.getElementById('modalCancelBtn').onclick = closeAddTripModal;
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeAddTripModal(); });
+  document.getElementById('modalTripName').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); confirmAddTrip(); }
+    else if(e.key === 'Escape'){ closeAddTripModal(); }
+  });
+  document.getElementById('modalTripRange').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); confirmAddTrip(); }
+    else if(e.key === 'Escape'){ closeAddTripModal(); }
+  });
+})();
+
 function renderTravel(){
   const t = data.travel;
   const select = document.getElementById('itinTripSelect');
@@ -1486,16 +1552,6 @@ function renderTravel(){
 function attachTravelStaticEvents(){
   const select = document.getElementById('itinTripSelect');
 
-  function addNewTrip(){
-    const name = prompt('Name this trip:');
-    if(!name || !name.trim()) return false;
-    const newTrip = {id:'trip_'+uid(), name:name.trim(), range:'', flight:[], stay:[], days:[]};
-    data.travel.trips.push(newTrip);
-    data.travel.activeTripId = newTrip.id;
-    render(); saveData();
-    return true;
-  }
-
   select.onchange = ()=>{
     if(!select.value) return;
     data.travel.activeTripId = select.value;
@@ -1503,7 +1559,7 @@ function attachTravelStaticEvents(){
   };
 
   const addTripBtn = document.getElementById('itinAddTripBtn');
-  if(addTripBtn) addTripBtn.onclick = addNewTrip;
+  if(addTripBtn) addTripBtn.onclick = openAddTripModal;
 
   const delBtn = document.getElementById('itinTripDelBtn');
   delBtn.onclick = ()=>{
