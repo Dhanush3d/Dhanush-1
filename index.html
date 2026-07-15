@@ -146,6 +146,13 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
 .reset-row{text-align:center;margin-top:1.5rem;}
 .reset-link{color:var(--danger);font-size:0.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;text-decoration:none;}
 .reset-link:hover{text-decoration:underline;}
+
+/* ===== EDITABLE FIELDS ===== */
+[contenteditable="true"]{cursor:text;border-radius:5px;padding:0.05rem 0.25rem;margin:-0.05rem -0.25rem;transition:background .12s;}
+[contenteditable="true"]:hover{background:rgba(255,255,255,0.055);}
+[contenteditable="true"]:focus{outline:none;background:rgba(255,255,255,0.09);box-shadow:0 0 0 1px rgba(255,255,255,0.18);}
+.amount-dual{font-size:0.84rem;color:var(--text);font-weight:600;flex:none;white-space:nowrap;}
+.shop-item-price.amount-dual, .shop-cat-total.amount-dual{min-width:auto;}
 </style>
 </head>
 <body>
@@ -194,6 +201,20 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
         </div>
       </div>
 
+      <!-- SHOPPING -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Shopping</div>
+          <button class="icon-btn" id="shopAddBtn">+</button>
+        </div>
+        <div id="shopRoot"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col-right">
+
       <!-- ACCOMMODATION -->
       <div class="panel">
         <div class="panel-head">
@@ -206,10 +227,11 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
         </table>
       </div>
 
-    </div>
-
-    <!-- RIGHT -->
-    <div class="col-right">
+      <!-- TRAVEL -->
+      <div class="panel">
+        <div class="panel-title" style="margin-bottom:0.6rem;">Travel</div>
+        <div id="travelRoot"></div>
+      </div>
 
       <!-- CALENDAR -->
       <div class="panel">
@@ -219,21 +241,6 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
           <button id="calNext">›</button>
         </div>
         <div class="cal-grid" id="calGrid"></div>
-      </div>
-
-      <!-- SHOPPING -->
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-title">Shopping</div>
-          <button class="icon-btn" id="shopAddBtn">+</button>
-        </div>
-        <div id="shopRoot"></div>
-      </div>
-
-      <!-- TRAVEL -->
-      <div class="panel">
-        <div class="panel-title" style="margin-bottom:0.6rem;">Travel</div>
-        <div id="travelRoot"></div>
       </div>
 
     </div>
@@ -315,6 +322,29 @@ let trips = [
   {id:'india', title:'India Trip', collapsed:true, days:[]},
 ];
 
+/* ===================== CURRENCY ===================== */
+const GBP_TO_INR = 129; // approx mid-market rate
+function dualCurrency(gbp){
+  const n = Number(gbp)||0;
+  const inr = Math.round(n*GBP_TO_INR);
+  return `£${n.toLocaleString()} / ₹${inr.toLocaleString('en-IN')}`;
+}
+function parseGBP(str){
+  const m = String(str).replace(/,/g,'').match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : 0;
+}
+
+/* ===================== EDITABLE BINDING ===================== */
+function bindEditable(selector, onCommit){
+  document.querySelectorAll(selector).forEach(el=>{
+    el.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    });
+    el.addEventListener('blur', ()=> onCommit(el));
+    el.addEventListener('click', e=> e.stopPropagation());
+  });
+}
+
 /* ===================== TASKS RENDER ===================== */
 function uid(){ return 't'+Math.random().toString(36).slice(2,9); }
 
@@ -324,7 +354,7 @@ function renderTaskNode(node, nested){
       <div class="task-row">
         <span class="grip">::</span>
         <button class="arrow-btn ${node.collapsed?'collapsed':''}" data-toggle="${node.id}">▾</button>
-        <span class="task-label section">${node.title}</span>
+        <span class="task-label section" contenteditable="true" data-sectiontitle="${node.id}">${node.title}</span>
         <span class="more-dots">⋯</span>
       </div>
       <div class="section-body" style="${node.collapsed?'display:none;':''}">
@@ -338,8 +368,8 @@ function renderTaskNode(node, nested){
       <span class="grip">::</span>
       <span class="arrow-spacer"></span>
       <div class="check ${node.done?'checked':''}" data-check="${node.id}"></div>
-      <span class="task-label ${node.done?'done':''}">${node.text}</span>
-      ${node.paid?`<div class="pill-wrap"><span class="pill-paid">Paid</span><span class="amount">£${node.amount}</span><span class="pill-caret">▾</span></div>`:''}
+      <span class="task-label ${node.done?'done':''}" contenteditable="true" data-tasktext="${node.id}">${node.text}</span>
+      ${node.paid?`<span class="amount-dual" contenteditable="true" data-taskamount="${node.id}">${dualCurrency(node.amount)}</span>`:''}
     </div>`;
   }
   if(node.type==='bulletgroup'){
@@ -347,9 +377,9 @@ function renderTaskNode(node, nested){
       <div class="task-row">
         <span class="grip">::</span>
         <span class="arrow-spacer" style="width:14px;display:inline-block;"><span style="color:var(--muted);font-size:0.6rem;">●</span></span>
-        <span class="task-label section">${node.title}</span>
+        <span class="task-label section" contenteditable="true" data-bgtitle="${node.id}">${node.title}</span>
       </div>
-      <div>${node.children.map(c=>`<div class="task-row nested"><span class="grip">::</span><span class="bullet-dot"></span><span class="task-label">${c.text}</span></div>`).join('')}</div>
+      <div>${node.children.map(c=>`<div class="task-row nested"><span class="grip">::</span><span class="bullet-dot"></span><span class="task-label" contenteditable="true" data-bullettext="${c.id}">${c.text}</span></div>`).join('')}</div>
     </div>`;
   }
   if(node.type==='divider'){
@@ -360,21 +390,21 @@ function renderTaskNode(node, nested){
     return `<div class="task-row">
       <span class="grip">::</span>
       <span class="num-label">${idx}.</span>
-      <span class="task-label">${node.text}</span>
+      <span class="task-label" contenteditable="true" data-numtext="${node.id}">${node.text}</span>
     </div>`;
   }
   if(node.type==='link'){
     return `<div class="task-row">
       <span class="grip">::</span>
       <span class="link-icon">🔗</span>
-      <span class="task-link">${node.text}</span>
+      <span class="task-link" contenteditable="true" data-linktext="${node.id}">${node.text}</span>
     </div>`;
   }
   if(node.type==='heading'){
-    return `<div class="task-row"><span class="grip">::</span><span class="task-label section" style="font-size:1rem;">${node.text}</span></div>`;
+    return `<div class="task-row"><span class="grip">::</span><span class="task-label section" style="font-size:1rem;" contenteditable="true" data-headtext="${node.id}">${node.text}</span></div>`;
   }
   if(node.type==='text'){
-    return `<div class="task-row"><span class="grip">::</span><span class="task-label">${node.text}</span></div>`;
+    return `<div class="task-row"><span class="grip">::</span><span class="task-label" contenteditable="true" data-texttext="${node.id}">${node.text}</span></div>`;
   }
   return '';
 }
@@ -407,6 +437,34 @@ function wireTasks(){
       renderTasks();
     };
   });
+  bindEditable('[data-sectiontitle]', el=>{
+    findNode(tasks, el.dataset.sectiontitle).title = el.textContent.trim();
+  });
+  bindEditable('[data-tasktext]', el=>{
+    findNode(tasks, el.dataset.tasktext).text = el.textContent.trim();
+  });
+  bindEditable('[data-taskamount]', el=>{
+    findNode(tasks, el.dataset.taskamount).amount = parseGBP(el.textContent);
+    renderTasks();
+  });
+  bindEditable('[data-bgtitle]', el=>{
+    findNode(tasks, el.dataset.bgtitle).title = el.textContent.trim();
+  });
+  bindEditable('[data-bullettext]', el=>{
+    findNode(tasks, el.dataset.bullettext).text = el.textContent.trim();
+  });
+  bindEditable('[data-numtext]', el=>{
+    findNode(tasks, el.dataset.numtext).text = el.textContent.trim();
+  });
+  bindEditable('[data-linktext]', el=>{
+    findNode(tasks, el.dataset.linktext).text = el.textContent.trim();
+  });
+  bindEditable('[data-headtext]', el=>{
+    findNode(tasks, el.dataset.headtext).text = el.textContent.trim();
+  });
+  bindEditable('[data-texttext]', el=>{
+    findNode(tasks, el.dataset.texttext).text = el.textContent.trim();
+  });
 }
 
 /* block-menu add */
@@ -438,9 +496,9 @@ function renderAccommodation(){
   const statusClass = {shortlisted:'status-shortlisted', review:'status-review', not:'status-not'};
   document.getElementById('accBody').innerHTML = accommodation.map((row,i)=>`
     <tr>
-      <td><div class="acc-name">${row.name}</div><a class="acc-url" href="#">${row.url}</a></td>
-      <td class="acc-num">${row.rent}</td>
-      <td class="acc-num">${row.bills}</td>
+      <td><div class="acc-name" contenteditable="true" data-accname="${i}">${row.name}</div><a class="acc-url" href="#" contenteditable="true" data-accurl="${i}">${row.url}</a></td>
+      <td class="acc-num" contenteditable="true" data-accrent="${i}">${row.rent}</td>
+      <td class="acc-num" contenteditable="true" data-accbills="${i}">${row.bills}</td>
       <td><span class="status-pill ${statusClass[row.status]}" data-accstatus="${i}">${statusLabel[row.status]} ▾</span></td>
     </tr>`).join('');
   document.querySelectorAll('[data-accstatus]').forEach(el=>{
@@ -452,6 +510,13 @@ function renderAccommodation(){
       renderAccommodation();
     };
   });
+  document.querySelectorAll('.acc-url').forEach(el=>{
+    el.addEventListener('click', e=> e.preventDefault());
+  });
+  bindEditable('[data-accname]', el=>{ accommodation[el.dataset.accname].name = el.textContent.trim(); });
+  bindEditable('[data-accurl]', el=>{ accommodation[el.dataset.accurl].url = el.textContent.trim(); });
+  bindEditable('[data-accrent]', el=>{ accommodation[el.dataset.accrent].rent = el.textContent.trim(); });
+  bindEditable('[data-accbills]', el=>{ accommodation[el.dataset.accbills].bills = el.textContent.trim(); });
 }
 
 /* ===================== CALENDAR ===================== */
@@ -493,23 +558,23 @@ function renderShopping(){
     return `<div class="shop-cat">
       <div class="shop-cat-head" data-shopcat="${cat.id}">
         <button class="arrow-btn ${cat.collapsed?'collapsed':''}">▾</button>
-        <span class="shop-cat-title">${cat.title}</span>
-        <span class="shop-cat-total">£${total}</span>
+        <span class="shop-cat-title" contenteditable="true" data-shopcattitle="${cat.id}">${cat.title}</span>
+        <span class="shop-cat-total amount-dual">${dualCurrency(total)}</span>
       </div>
       <div class="shop-items" style="${cat.collapsed?'display:none;':''}">
         ${cat.items.map((it,idx)=>`
           <div class="shop-item">
             <div class="check ${it.paid?'checked':''}" data-shopcheck="${cat.id}:${idx}"></div>
-            <span class="shop-item-name">${it.name}</span>
-            <span class="shop-item-price">£${it.price}</span>
-            ${it.paid?'<span class="pill-paid">Paid ▾</span>':''}
+            <span class="shop-item-name" contenteditable="true" data-shopname="${cat.id}:${idx}">${it.name}</span>
+            <span class="shop-item-price amount-dual" contenteditable="true" data-shopprice="${cat.id}:${idx}">${dualCurrency(it.price)}</span>
           </div>`).join('')}
       </div>
       <div class="shop-divider"></div>
     </div>`;
   }).join('');
   document.querySelectorAll('[data-shopcat]').forEach(el=>{
-    el.onclick = ()=>{
+    el.onclick = (e)=>{
+      if(e.target.closest('[contenteditable]')) return;
       const cat = shopping.find(c=>c.id===el.dataset.shopcat);
       cat.collapsed = !cat.collapsed;
       renderShopping();
@@ -523,6 +588,18 @@ function renderShopping(){
       renderShopping();
     };
   });
+  bindEditable('[data-shopcattitle]', el=>{
+    shopping.find(c=>c.id===el.dataset.shopcattitle).title = el.textContent.trim();
+  });
+  bindEditable('[data-shopname]', el=>{
+    const [catId, idx] = el.dataset.shopname.split(':');
+    shopping.find(c=>c.id===catId).items[idx].name = el.textContent.trim();
+  });
+  bindEditable('[data-shopprice]', el=>{
+    const [catId, idx] = el.dataset.shopprice.split(':');
+    shopping.find(c=>c.id===catId).items[idx].price = parseGBP(el.textContent);
+    renderShopping();
+  });
 }
 
 /* ===================== TRAVEL ===================== */
@@ -533,19 +610,24 @@ function renderTravel(){
         <div class="day-table-wrap">
           <table class="day-table">
             <tr><th>Places</th><th>Cost</th><th>Food</th><th>Cost</th><th>Stay</th><th>Cost</th><th>Notes</th></tr>
-            ${day.rows.map(r=>`<tr>
-              <td>${r.place}</td><td>£${r.pcost}</td>
-              <td>${r.food}</td><td>£${r.fcost}</td>
-              <td>${r.stay}</td><td>£${r.scost}</td>
-              <td class="note-cell">${r.notes}</td>
+            ${day.rows.map((r,ridx)=>`<tr>
+              <td contenteditable="true" data-place="${trip.id}:${day.id}:${ridx}">${r.place}</td>
+              <td contenteditable="true" data-pcost="${trip.id}:${day.id}:${ridx}">£${r.pcost}</td>
+              <td contenteditable="true" data-food="${trip.id}:${day.id}:${ridx}">${r.food}</td>
+              <td contenteditable="true" data-fcost="${trip.id}:${day.id}:${ridx}">£${r.fcost}</td>
+              <td contenteditable="true" data-stay="${trip.id}:${day.id}:${ridx}">${r.stay}</td>
+              <td contenteditable="true" data-scost="${trip.id}:${day.id}:${ridx}">£${r.scost}</td>
+              <td class="note-cell" contenteditable="true" data-notes="${trip.id}:${day.id}:${ridx}">${r.notes}</td>
             </tr>`).join('')}
           </table>
         </div>` : '';
       return `<div class="day-block">
         <div class="day-head" data-day="${trip.id}:${day.id}">
           <span class="day-plus">+</span>
-          <span class="day-title">${day.title} – ${day.date}</span>
-          <span class="day-total">${day.total!==null?'£'+day.total:'—'}</span>
+          <span class="day-title" contenteditable="true" data-daytitle="${trip.id}:${day.id}">${day.title}</span>
+          <span>–</span>
+          <span contenteditable="true" data-daydate="${trip.id}:${day.id}" style="font-size:0.87rem;">${day.date}</span>
+          <span class="day-total" contenteditable="true" data-daytotal="${trip.id}:${day.id}">${day.total!==null?'£'+day.total:'—'}</span>
           <span class="day-dots">⋯</span>
         </div>
         <div style="${day.collapsed?'display:none;':''}">${table}</div>
@@ -565,7 +647,7 @@ function renderTravel(){
     return `<div class="trip-section" style="margin-bottom:0.8rem;">
       <div class="trip-head" data-trip="${trip.id}">
         <button class="arrow-btn ${trip.collapsed?'collapsed':''}">▾</button>
-        <span class="trip-title">${trip.title}</span>
+        <span class="trip-title" contenteditable="true" data-triptitle="${trip.id}">${trip.title}</span>
         <span class="trip-total">£${tripTotal.toLocaleString()}</span>
       </div>
       <div style="${trip.collapsed?'display:none;':''}">
@@ -576,20 +658,73 @@ function renderTravel(){
   }).join('');
 
   document.querySelectorAll('[data-trip]').forEach(el=>{
-    el.onclick = ()=>{
+    el.onclick = (e)=>{
+      if(e.target.closest('[contenteditable]')) return;
       const trip = trips.find(t=>t.id===el.dataset.trip);
       trip.collapsed = !trip.collapsed;
       renderTravel();
     };
   });
   document.querySelectorAll('[data-day]').forEach(el=>{
-    el.onclick = ()=>{
+    el.onclick = (e)=>{
+      if(e.target.closest('[contenteditable]')) return;
       const [tripId, dayId] = el.dataset.day.split(':');
       const trip = trips.find(t=>t.id===tripId);
       const day = trip.days.find(d=>d.id===dayId);
       day.collapsed = !day.collapsed;
       renderTravel();
     };
+  });
+
+  function getDay(tripId, dayId){
+    return trips.find(t=>t.id===tripId).days.find(d=>d.id===dayId);
+  }
+  bindEditable('[data-triptitle]', el=>{
+    trips.find(t=>t.id===el.dataset.triptitle).title = el.textContent.trim();
+  });
+  bindEditable('[data-daytitle]', el=>{
+    const [tripId, dayId] = el.dataset.daytitle.split(':');
+    getDay(tripId, dayId).title = el.textContent.trim();
+  });
+  bindEditable('[data-daydate]', el=>{
+    const [tripId, dayId] = el.dataset.daydate.split(':');
+    getDay(tripId, dayId).date = el.textContent.trim();
+  });
+  bindEditable('[data-daytotal]', el=>{
+    const [tripId, dayId] = el.dataset.daytotal.split(':');
+    getDay(tripId, dayId).total = parseGBP(el.textContent);
+    renderTravel();
+  });
+  bindEditable('[data-place]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.place.split(':');
+    getDay(tripId, dayId).rows[ridx].place = el.textContent.trim();
+  });
+  bindEditable('[data-pcost]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.pcost.split(':');
+    getDay(tripId, dayId).rows[ridx].pcost = parseGBP(el.textContent);
+    renderTravel();
+  });
+  bindEditable('[data-food]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.food.split(':');
+    getDay(tripId, dayId).rows[ridx].food = el.textContent.trim();
+  });
+  bindEditable('[data-fcost]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.fcost.split(':');
+    getDay(tripId, dayId).rows[ridx].fcost = parseGBP(el.textContent);
+    renderTravel();
+  });
+  bindEditable('[data-stay]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.stay.split(':');
+    getDay(tripId, dayId).rows[ridx].stay = el.textContent.trim();
+  });
+  bindEditable('[data-scost]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.scost.split(':');
+    getDay(tripId, dayId).rows[ridx].scost = parseGBP(el.textContent);
+    renderTravel();
+  });
+  bindEditable('[data-notes]', el=>{
+    const [tripId, dayId, ridx] = el.dataset.notes.split(':');
+    getDay(tripId, dayId).rows[ridx].notes = el.textContent.trim();
   });
 }
 
