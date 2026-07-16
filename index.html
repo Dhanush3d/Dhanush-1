@@ -65,6 +65,9 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
 .task-block{margin-bottom:0.25rem;}
 .task-row{display:flex;align-items:center;gap:0.55rem;padding:0.42rem 0.1rem;position:relative;}
 .task-row:hover .grip{opacity:0.7;}
+.shop-item:hover .grip{opacity:0.7;}
+.shop-item.drag-over{outline:2px dashed var(--muted);outline-offset:2px;border-radius:6px;}
+.shop-items.drag-over{outline:2px dashed var(--muted);outline-offset:-2px;border-radius:6px;}
 .task-row:hover .more-dots{opacity:1;}
 .grip{opacity:0;color:var(--muted);font-size:0.7rem;letter-spacing:1px;cursor:grab;flex:none;user-select:none;font-family:monospace;line-height:1;}
 .arrow-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.65rem;flex:none;width:14px;display:flex;align-items:center;justify-content:center;transition:transform .15s;padding:0;}
@@ -837,6 +840,32 @@ document.getElementById('calNext').onclick = ()=>{
 };
 
 /* ===================== SHOPPING ===================== */
+let draggedShopKey = null;
+function moveShopItem(fromKey, toKey, appendToCatEnd){
+  const [fromCat, fromIdxStr] = fromKey.split(':');
+  const fromIdx = Number(fromIdxStr);
+  const sourceCat = shopping.find(c=>c.id===fromCat);
+  if(!sourceCat || !sourceCat.items[fromIdx]) return;
+  const item = sourceCat.items[fromIdx];
+
+  let destCat, destIdx;
+  if(appendToCatEnd){
+    destCat = shopping.find(c=>c.id===toKey);
+    if(!destCat) return;
+    destIdx = destCat.items.length;
+  } else {
+    const [toCat, toIdxStr] = toKey.split(':');
+    destCat = shopping.find(c=>c.id===toCat);
+    if(!destCat) return;
+    destIdx = Number(toIdxStr);
+    if(fromCat===toCat && fromIdx===destIdx) return;
+  }
+
+  sourceCat.items.splice(fromIdx, 1);
+  if(sourceCat===destCat && fromIdx < destIdx) destIdx--;
+  destCat.items.splice(destIdx, 0, item);
+  renderShopping();
+}
 function renderShopping(){
   document.getElementById('shopRoot').innerHTML = shopping.map(cat=>{
     const total = moneyTotal(cat.items);
@@ -847,9 +876,10 @@ function renderShopping(){
         <span class="shop-cat-total amount-dual">GBP ${total.gbp} · INR ${total.inr}</span>
         <span class="more-dots" data-shopcatdel="${cat.id}" title="Delete category" style="opacity:0.6;margin-left:0.2rem;">×</span>
       </div>
-      <div class="shop-items" style="${cat.collapsed?'display:none;':''}">
+      <div class="shop-items" data-shopcatbody="${cat.id}" style="${cat.collapsed?'display:none;':''}">
         ${cat.items.map((it,idx)=>`
-          <div class="shop-item">
+          <div class="shop-item" data-shopitemrow="${cat.id}:${idx}">
+            <span class="grip" draggable="true" data-shopgrip="${cat.id}:${idx}">::</span>
             <div class="check ${it.paid?'checked':''}" data-shopcheck="${cat.id}:${idx}"></div>
             <span class="shop-item-name" contenteditable="true" data-shopname="${cat.id}:${idx}">${it.name}</span>
             ${moneyFields(it.price,`shop:${cat.id}:${idx}`)}
@@ -863,6 +893,37 @@ function renderShopping(){
   const grand = shopping.reduce((s,cat)=>{ const t=moneyTotal(cat.items); return {gbp:s.gbp+t.gbp, inr:s.inr+t.inr}; },{gbp:0,inr:0});
   const shopBadge = document.getElementById('shopTotalBadge');
   if(shopBadge) shopBadge.textContent = (grand.gbp || grand.inr) ? `Total: GBP ${grand.gbp} · INR ${grand.inr}` : '';
+  document.querySelectorAll('[data-shopgrip]').forEach(grip=>{
+    grip.addEventListener('dragstart', e=>{
+      draggedShopKey = grip.dataset.shopgrip;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    grip.addEventListener('dragend', ()=>{
+      draggedShopKey = null;
+      document.querySelectorAll('.shop-item.drag-over, .shop-items.drag-over').forEach(x=>x.classList.remove('drag-over'));
+    });
+  });
+  document.querySelectorAll('[data-shopitemrow]').forEach(row=>{
+    row.addEventListener('dragover', e=>{ e.preventDefault(); if(draggedShopKey) row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
+    row.addEventListener('drop', e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over');
+      if(draggedShopKey) moveShopItem(draggedShopKey, row.dataset.shopitemrow, false);
+      draggedShopKey = null;
+    });
+  });
+  document.querySelectorAll('[data-shopcatbody]').forEach(body=>{
+    body.addEventListener('dragover', e=>{ e.preventDefault(); if(draggedShopKey) body.classList.add('drag-over'); });
+    body.addEventListener('dragleave', ()=> body.classList.remove('drag-over'));
+    body.addEventListener('drop', e=>{
+      e.preventDefault();
+      body.classList.remove('drag-over');
+      if(draggedShopKey) moveShopItem(draggedShopKey, body.dataset.shopcatbody, true);
+      draggedShopKey = null;
+    });
+  });
   document.querySelectorAll('[data-shopcatdel]').forEach(el=>{
     el.onclick = async (e)=>{
       e.stopPropagation();
