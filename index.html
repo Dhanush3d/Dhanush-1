@@ -263,8 +263,8 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
       <div class="panel">
         <div class="panel-head">
           <div class="panel-title">Tasks</div>
-          <span class="panel-total" id="tasksTotalBadge"></span>
-          <button class="icon-btn" id="tasksAddTop" style="margin-left:auto;">+</button>
+          <span class="panel-total" id="tasksTotalBadge" style="margin-left:auto;"></span>
+          <button class="icon-btn" id="tasksAddTop">+</button>
           <div class="block-menu" id="blockMenu" style="bottom:auto;top:31px;left:auto;right:0;">
             <div class="block-menu-item" data-block="heading"><span class="bmi-icon">H</span> Heading</div><div class="block-menu-item" data-block="text"><span class="bmi-icon">T</span> Text</div><div class="block-menu-item" data-block="toggle">Toggle</div><div class="block-menu-item" data-block="todo">To-do</div><div class="block-menu-item" data-block="bulleted">Bulleted List</div><div class="block-menu-item" data-block="numbered">Numbered List</div><div class="block-menu-item" data-block="divider">Divider</div>
             <div class="menu-sep"></div><div class="block-menu-item">Text color</div><div class="swatch-row"><div class="swatch" data-color="#9a9a9e" style="background:#9a9a9e"></div><div class="swatch" data-color="#f5f5f5" style="background:#f5f5f5"></div><div class="swatch" data-color="#3b82f6" style="background:#3b82f6"></div><div class="swatch" data-color="#22c55e" style="background:#22c55e"></div><div class="swatch" data-color="#ef4444" style="background:#ef4444"></div></div>
@@ -300,8 +300,8 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-se
       <div class="shopping-in-tasks">
         <div class="panel-head">
           <div class="panel-title">Shopping</div>
-          <span class="panel-total" id="shopTotalBadge"></span>
-          <button class="icon-btn" id="shopAddBtn" style="margin-left:auto;">+</button>
+          <span class="panel-total" id="shopTotalBadge" style="margin-left:auto;"></span>
+          <button class="icon-btn" id="shopAddBtn">+</button>
         </div>
         <div id="shopRoot"></div>
       </div>
@@ -469,7 +469,6 @@ function renderTaskNode(node, nested){
         <span class="more-dots" data-deltask="${node.id}" title="Delete list" style="opacity:0.6;margin-left:0;">×</span>
       </div>
       <div>${node.children.map(c=>`<div class="task-row nested" data-dragid="${c.id}"><span class="grip" draggable="true">::</span><span class="bullet-dot"></span><span class="task-label" contenteditable="true" data-bullettext="${c.id}">${c.text}</span><span class="more-dots" data-delitem="${c.id}" title="Delete item" style="opacity:0.6;margin-left:0;">×</span></div>`).join('')}
-      <div class="nested"><button class="add-plus-btn" data-addbullet="${node.id}" style="width:auto;padding:0.2rem 0.55rem;font-size:0.72rem;margin-top:0.15rem;">+ Add bullet</button></div>
       </div>
     </div>`;
   }
@@ -480,7 +479,8 @@ function renderTaskNode(node, nested){
     </div>`;
   }
   if(node.type==='numbered'){
-    const idx = tasks.filter(t=>t.type==='numbered').indexOf(node)+1;
+    const siblingList = findParentList(tasks, node.id) || tasks;
+    const idx = siblingList.filter(t=>t.type==='numbered').indexOf(node)+1;
     return `<div class="task-row" data-dragid="${node.id}">
       <span class="grip" draggable="true">::</span>
       <span class="num-label">${idx}.</span>
@@ -548,17 +548,77 @@ function findParentList(list, id){
   }
   return null;
 }
-function reorderTaskNode(draggedId, targetId){
+function isDescendant(node, id){
+  if(!node.children) return false;
+  for(const c of node.children){
+    if(c.id===id) return true;
+    if(isDescendant(c, id)) return true;
+  }
+  return false;
+}
+function moveTaskNode(draggedId, targetId){
   if(!draggedId || draggedId===targetId) return;
-  const list = findParentList(tasks, draggedId);
-  const targetList = findParentList(tasks, targetId);
-  if(!list || !targetList || list!==targetList) return; // only reorder within the same group
-  const fromIdx = list.findIndex(n=>n.id===draggedId);
-  const toIdx = list.findIndex(n=>n.id===targetId);
-  if(fromIdx===-1 || toIdx===-1) return;
-  const [item] = list.splice(fromIdx,1);
-  list.splice(toIdx,0,item);
+  const draggedNode = findNode(tasks, draggedId);
+  const sourceList = findParentList(tasks, draggedId);
+  if(!draggedNode || !sourceList) return;
+  const targetNode = findNode(tasks, targetId);
+  if(!targetNode) return;
+  if(draggedNode.type==='section' && isDescendant(draggedNode, targetId)) return; // avoid dropping a section into itself
+
+  let destList, destIndex;
+  if(targetNode.type==='section'){
+    // dropped directly on a toggle section: move inside it, at the end
+    destList = targetNode.children;
+    destIndex = destList.length;
+  } else {
+    destList = findParentList(tasks, targetId);
+    if(!destList) return;
+    destIndex = destList.findIndex(n=>n.id===targetId);
+    if(destIndex===-1) return;
+  }
+
+  const fromIdx = sourceList.findIndex(n=>n.id===draggedId);
+  if(fromIdx===-1) return;
+  sourceList.splice(fromIdx,1);
+  if(sourceList===destList && fromIdx<destIndex) destIndex--;
+  destList.splice(destIndex,0,draggedNode);
   renderTasks();
+}
+
+function addSiblingAfter(id, newNode){
+  const list = findParentList(tasks, id);
+  if(!list) return null;
+  const idx = list.findIndex(n=>n.id===id);
+  list.splice(idx+1, 0, newNode);
+  return newNode;
+}
+
+/* Enter key on any block's text: commit current text, add a new sibling
+   block of the same kind right after it, and focus the new one. */
+function bindEnterAddSibling(dataAttr, makeNode){
+  document.querySelectorAll(`[data-${dataAttr}]`).forEach(el=>{
+    el.addEventListener('click', e=>e.stopPropagation());
+    el.addEventListener('blur', ()=>{
+      const node = findNode(tasks, el.dataset[dataAttr]);
+      if(node) node.text = el.textContent.trim();
+      scheduleSave();
+    });
+    el.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){
+        e.preventDefault();
+        const id = el.dataset[dataAttr];
+        const node = findNode(tasks, id);
+        if(node) node.text = el.textContent.trim();
+        const newNode = makeNode();
+        addSiblingAfter(id, newNode);
+        renderTasks();
+        requestAnimationFrame(()=>{
+          const ne = document.querySelector(`[data-${dataAttr}="${newNode.id}"]`);
+          if(ne) ne.focus();
+        });
+      }
+    });
+  });
 }
 
 function wireTasks(){
@@ -603,14 +663,7 @@ function wireTasks(){
       renderTasks();
     };
   });
-  document.querySelectorAll('[data-addbullet]').forEach(el=>{
-    el.onclick = (e)=>{
-      e.stopPropagation();
-      const node = findNode(tasks, el.dataset.addbullet);
-      node.children.push({type:'bullet', id:uid(), text:''});
-      renderTasks();
-    };
-  });
+
   document.querySelectorAll('[data-pricedel]').forEach(el=>{
     el.onclick = (e)=>{
       e.stopPropagation();
@@ -628,7 +681,7 @@ function wireTasks(){
     row.addEventListener('drop', e=>{
       e.preventDefault();
       row.classList.remove('drag-over');
-      if(draggedTaskId) reorderTaskNode(draggedTaskId, row.dataset.dragid);
+      if(draggedTaskId) moveTaskNode(draggedTaskId, row.dataset.dragid);
       draggedTaskId = null;
     });
     const grip = row.querySelector(':scope > .grip');
@@ -649,28 +702,16 @@ function wireTasks(){
   bindEditable('[data-sectiontitle]', el=>{
     findNode(tasks, el.dataset.sectiontitle).title = el.textContent.trim();
   });
-  bindEditable('[data-tasktext]', el=>{
-    findNode(tasks, el.dataset.tasktext).text = el.textContent.trim();
-  });
+  bindEnterAddSibling('tasktext', ()=>({type:'todo', id:uid(), text:'', done:false}));
   bindEditable('[data-moneytext^="task:"]', el=>{ const [,id]=el.dataset.moneytext.split(':'); findNode(tasks,id).amount=readMoney(el.textContent); renderTasks(); });
   bindEditable('[data-bgtitle]', el=>{
     findNode(tasks, el.dataset.bgtitle).title = el.textContent.trim();
   });
-  bindEditable('[data-bullettext]', el=>{
-    findNode(tasks, el.dataset.bullettext).text = el.textContent.trim();
-  });
-  bindEditable('[data-numtext]', el=>{
-    findNode(tasks, el.dataset.numtext).text = el.textContent.trim();
-  });
-  bindEditable('[data-linktext]', el=>{
-    findNode(tasks, el.dataset.linktext).text = el.textContent.trim();
-  });
-  bindEditable('[data-headtext]', el=>{
-    findNode(tasks, el.dataset.headtext).text = el.textContent.trim();
-  });
-  bindEditable('[data-texttext]', el=>{
-    findNode(tasks, el.dataset.texttext).text = el.textContent.trim();
-  });
+  bindEnterAddSibling('bullettext', ()=>({type:'bullet', id:uid(), text:''}));
+  bindEnterAddSibling('numtext', ()=>({type:'numbered', id:uid(), text:''}));
+  bindEnterAddSibling('linktext', ()=>({type:'link', id:uid(), text:''}));
+  bindEnterAddSibling('headtext', ()=>({type:'heading', id:uid(), text:''}));
+  bindEnterAddSibling('texttext', ()=>({type:'text', id:uid(), text:''}));
 }
 
 /* block-menu add */
