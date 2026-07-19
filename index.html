@@ -222,6 +222,12 @@ body{
 .money-pair{display:inline-flex;align-items:center;white-space:nowrap;color:var(--muted);font-size:.78rem;padding:.25rem .4rem;border-radius:6px;cursor:text;}
 .money-pair:hover{background:rgba(255,255,255,.05);}
 .money-pair:focus{outline:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);}
+.currency-pair{display:inline-flex;align-items:center;gap:0.3rem;white-space:nowrap;background:rgba(255,255,255,0.05);border-radius:7px;padding:0.15rem 0.35rem;flex:none;}
+.currency-select{background:rgba(255,255,255,0.06);color:var(--text);border:1px solid var(--border);border-radius:5px;font-size:0.72rem;font-weight:700;padding:0.15rem 0.25rem;cursor:pointer;}
+.currency-select:hover{border-color:rgba(255,255,255,0.28);}
+.currency-amount{color:var(--text);font-size:0.82rem;font-weight:600;padding:0.1rem 0.3rem;border-radius:5px;cursor:text;min-width:1.2em;display:inline-block;}
+.currency-amount:hover{background:rgba(255,255,255,0.06);}
+.currency-amount:focus{outline:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);}
 .bills-toggle{min-width:36px;justify-content:center;background:rgba(34,197,94,.15);color:#4ade80;}
 .bills-toggle.no{background:rgba(239,68,68,.14);color:#f87171;}
 .row-delete{border:0;background:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 .2rem;}
@@ -230,8 +236,9 @@ body{
 .calendar-events{margin-top:0;padding-top:0;}
 
 /* ===== CALENDAR 3-BOX LAYOUT ===== */
-.cal-boxes{display:grid;grid-template-columns:1.15fr 1fr 0.85fr;gap:1rem;align-items:start;}
+.cal-boxes{display:grid;grid-template-columns:1.2fr 1fr;gap:1rem;align-items:start;}
 @media(max-width:860px){.cal-boxes{grid-template-columns:1fr;}}
+.cal-col-stack{display:flex;flex-direction:column;gap:1rem;}
 .cal-box{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:0.9rem;}
 .cal-box-title{font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.6rem;}
 .cal-box-progress{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
@@ -321,6 +328,8 @@ body{
 .grip{cursor:grab;}
 .grip:active{cursor:grabbing;}
 .task-row.drag-over{background:rgba(255,255,255,0.06);box-shadow:inset 0 2px 0 var(--primary);}
+.trip-section.drag-over{outline:2px dashed var(--muted);outline-offset:3px;border-radius:10px;}
+.itin-day.drag-over{outline:2px dashed var(--muted);outline-offset:3px;border-radius:8px;}
 .task-row.dragging{opacity:0.4;}
 
 /* ===== CARRIED-FORWARD DAY DATE ===== */
@@ -407,11 +416,13 @@ body{
             </div>
             <div class="cal-grid" id="calGrid"></div>
           </div>
-          <div class="cal-box">
-            <div class="cal-box-title">Reminders</div>
-            <div class="calendar-events" id="calendarEvents"></div>
+          <div class="cal-col-stack">
+            <div class="cal-box">
+              <div class="cal-box-title">Reminders</div>
+              <div class="calendar-events" id="calendarEvents"></div>
+            </div>
+            <div class="cal-box cal-box-progress" id="taskProgressBox"></div>
           </div>
-          <div class="cal-box cal-box-progress" id="taskProgressBox"></div>
         </div>
       </div>
 
@@ -488,6 +499,29 @@ function parseGBP(str){
 /* Manual GBP/INR fields are intentionally independent: no conversion is done. */
 function money(value){ return typeof value==='object' && value ? value : {gbp:Number(value)||0,inr:0}; }
 function moneyFields(value, key){ const m=money(value); return `<span class="money-pair" contenteditable="true" data-moneytext="${key}" title="Edit as: GBP 100 · INR 10000">GBP ${m.gbp} · INR ${m.inr}</span>`; }
+
+const CURRENCIES = ['GBP','USD','EUR','INR','JPY','AUD','CAD','CHF','CNY','AED','SGD','NZD',
+  'HKD','SEK','NOK','DKK','ZAR','THB','MYR','IDR','PHP','KRW','TWD','VND',
+  'MXN','BRL','ARS','CLP','COP','PEN','SAR','QAR','KWD','BHD','OMR','JOD',
+  'ILS','TRY','EGP','NGN','KES','GHS','PLN','CZK','HUF','RON','BGN','HRK',
+  'RUB','UAH','PKR','BDT','LKR','NPR','MMK','KHR','LAK'];
+function normaliseCurrencyValue(value){
+  if(value && typeof value==='object'){
+    if('currency' in value) return {currency:value.currency||'GBP', amount:Number(value.amount)||0};
+    if(value.gbp) return {currency:'GBP', amount:Number(value.gbp)||0};
+    if(value.inr) return {currency:'INR', amount:Number(value.inr)||0};
+    return {currency:'GBP', amount:0};
+  }
+  return {currency:'GBP', amount:Number(value)||0};
+}
+function currencyFields(value, key){
+  const v = normaliseCurrencyValue(value);
+  const options = CURRENCIES.map(c=>`<option value="${c}" ${c===v.currency?'selected':''}>${c}</option>`).join('');
+  return `<span class="currency-pair">
+    <select class="currency-select" data-currencysel="${key}">${options}</select>
+    <span class="currency-amount" contenteditable="true" data-currencyamt="${key}">${v.amount}</span>
+  </span>`;
+}
 function readMoney(text, fallback){ const values=String(text).match(/-?\d+(?:\.\d+)?/g)||[]; return {gbp:Number(values[0])||0,inr:Number(values[1])||0}; }
 function moneyTotal(items){ return items.reduce((s,item)=>{ const m=money(item.price); return {gbp:s.gbp+m.gbp,inr:s.inr+m.inr}; },{gbp:0,inr:0}); }
 function isHttpUrl(str){ return /^https?:\/\/\S+$/i.test(String(str||'').trim()); }
@@ -621,7 +655,7 @@ function renderTasks(){
   document.getElementById('tasksRoot').innerHTML = tasks.map(n=>renderTaskNode(n,false)).join('');
   const total = tasksTotal(tasks);
   const badge = document.getElementById('tasksTotalBadge');
-  if(badge) badge.textContent = (total.gbp || total.inr) ? `Spent: GBP ${total.gbp} · INR ${total.inr}` : '';
+  if(badge) badge.innerHTML = (total.gbp || total.inr) ? `<span class="shop-total-pill" title="Total spent so far"><span class="shop-total-pill-label">Total spent</span><span class="shop-total-pill-values">GBP ${total.gbp} · INR ${total.inr}</span></span>` : '';
   wireTasks();
   renderTaskProgress();
   scheduleSave();
@@ -1188,17 +1222,21 @@ function tripDateRange(trip){
   return `${formatDisplayDate(first)} – ${formatDisplayDate(last)}`;
 }
 function tripItemsTotal(trip){
-  let out = {gbp:0,inr:0};
+  const totals = {};
   (trip.days||[]).forEach(day=>{
     (day.blocks||[]).forEach(block=>{
       (block.items||[]).forEach(item=>{
         if(!item.paid) return;
-        const m = money(item.amount);
-        out = {gbp:out.gbp+m.gbp, inr:out.inr+m.inr};
+        const v = normaliseCurrencyValue(item.amount);
+        totals[v.currency] = (totals[v.currency]||0) + v.amount;
       });
     });
   });
-  return out;
+  return totals;
+}
+function formatTripTotal(totals){
+  const parts = Object.keys(totals).filter(c=>totals[c]).map(c=>`${c} ${totals[c]}`);
+  return parts.length ? `Total: ${parts.join(' · ')}` : '';
 }
 function getTrip(tripId){ return trips.find(t=>t.id===tripId); }
 function getDay(tripId, dayId){ const t=getTrip(tripId); return t && t.days.find(d=>d.id===dayId); }
@@ -1215,7 +1253,7 @@ function renderDayBlocks(trip, day){
       <ul class="itin-items">
         ${(block.items||[]).map(item=>{
           const priceHtml = item.paid
-            ? `${moneyFields(item.amount, `itin:${trip.id}:${day.id}:${block.id}:${item.id}`)}<span class="price-remove" data-itinpricedel="${trip.id}:${day.id}:${block.id}:${item.id}" title="Remove cost">×</span>`
+            ? `${currencyFields(item.amount, `${trip.id}:${day.id}:${block.id}:${item.id}`)}<span class="price-remove" data-itinpricedel="${trip.id}:${day.id}:${block.id}:${item.id}" title="Remove cost">×</span>`
             : `<span class="price-add" data-itinpriceadd="${trip.id}:${day.id}:${block.id}:${item.id}" title="Add a cost">+ cost</span>`;
           return `<li class="itin-item">
             <span class="itin-item-text" contenteditable="true" data-itintext="${trip.id}:${day.id}:${block.id}:${item.id}">${item.text||''}</span>
@@ -1235,9 +1273,10 @@ function renderTravel(){
       const dateField = dayIdx===0
         ? `<input type="date" data-daydate="${trip.id}:${day.id}" value="${dateInput(day.date)}" onclick="event.stopPropagation()">`
         : `<span class="itin-day-date" title="Follows Day 1 automatically">${dateInput(day.date) ? formatDisplayDate(dateInput(day.date)) : '—'}</span>`;
-      return `<div class="itin-day">
+      return `<div class="itin-day" data-daydragid="${trip.id}:${day.id}">
         <span class="itin-dot"></span>
         <div class="itin-day-head" data-day="${trip.id}:${day.id}">
+          <span class="grip" draggable="true" data-daygrip="${trip.id}:${day.id}" title="Drag to reorder">::</span>
           <span class="itin-day-title" contenteditable="true" data-daytitle="${trip.id}:${day.id}">${day.title}</span>
           ${dateField}
           <span class="day-dots" data-delday="${trip.id}:${day.id}" title="Delete day">⋯</span>
@@ -1263,11 +1302,13 @@ function renderTravel(){
     const tripTotal = tripItemsTotal(trip);
     const dateRange = tripDateRange(trip);
 
-    return `<div class="trip-section" style="margin-bottom:0.8rem;">
+    return `<div class="trip-section" data-tripdragid="${trip.id}" style="margin-bottom:0.8rem;">
       <div class="trip-head" data-trip="${trip.id}">
+        <span class="grip" draggable="true" data-tripgrip="${trip.id}" title="Drag to reorder">::</span>
         <button class="arrow-btn ${trip.collapsed?'collapsed':''}">▾</button>
         <span class="trip-title" contenteditable="true" data-triptitle="${trip.id}">${trip.title}</span>
-        <span class="trip-total">${(tripTotal.gbp||tripTotal.inr) ? `Total: GBP ${tripTotal.gbp} · INR ${tripTotal.inr}` : ''}</span>
+        <span class="trip-total">${formatTripTotal(tripTotal)}</span>
+        <span class="more-dots" data-deltrip="${trip.id}" title="Delete trip" style="opacity:0.6;">×</span>
       </div>
       <div style="${trip.collapsed?'display:none;':''}">
         <div class="trip-layout">
@@ -1297,6 +1338,7 @@ function renderTravel(){
   document.querySelectorAll('[data-trip]').forEach(el=>{
     el.onclick = (e)=>{
       if(e.target.closest('[contenteditable]')) return;
+      if(e.target.closest('[data-tripgrip]') || e.target.closest('[data-deltrip]')) return;
       const trip = trips.find(t=>t.id===el.dataset.trip);
       trip.collapsed = !trip.collapsed;
       renderTravel();
@@ -1306,6 +1348,7 @@ function renderTravel(){
     el.onclick = (e)=>{
       if(e.target.closest('[contenteditable]')) return;
       if(e.target.closest('[data-delday]')) return;
+      if(e.target.closest('[data-daygrip]')) return;
       const [tripId, dayId] = el.dataset.day.split(':');
       const day = getDay(tripId, dayId);
       day.collapsed = !day.collapsed;
@@ -1324,13 +1367,87 @@ function renderTravel(){
       }
     };
   });
+  document.querySelectorAll('[data-deltrip]').forEach(el=>{
+    el.onclick = async (e)=>{
+      e.stopPropagation();
+      const ok = await showConfirm('Delete this entire trip? This removes all its days and details.');
+      if(ok){
+        trips = trips.filter(t=>t.id!==el.dataset.deltrip);
+        renderTravel();
+      }
+    };
+  });
+  /* ---- drag & drop reordering: trips ---- */
+  (function(){
+    let draggedTripId = null;
+    document.querySelectorAll('[data-tripgrip]').forEach(grip=>{
+      grip.addEventListener('dragstart', e=>{
+        draggedTripId = grip.dataset.tripgrip;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      grip.addEventListener('dragend', ()=>{
+        draggedTripId = null;
+        document.querySelectorAll('[data-tripdragid]').forEach(p=>p.classList.remove('drag-over'));
+      });
+    });
+    document.querySelectorAll('[data-tripdragid]').forEach(section=>{
+      section.addEventListener('dragover', e=>{ if(draggedTripId){ e.preventDefault(); section.classList.add('drag-over'); }});
+      section.addEventListener('dragleave', ()=> section.classList.remove('drag-over'));
+      section.addEventListener('drop', e=>{
+        e.preventDefault();
+        section.classList.remove('drag-over');
+        if(!draggedTripId || draggedTripId===section.dataset.tripdragid) return;
+        const fromIdx = trips.findIndex(t=>t.id===draggedTripId);
+        const toIdx = trips.findIndex(t=>t.id===section.dataset.tripdragid);
+        if(fromIdx===-1||toIdx===-1) return;
+        const [item] = trips.splice(fromIdx,1);
+        trips.splice(toIdx,0,item);
+        draggedTripId = null;
+        renderTravel();
+      });
+    });
+  })();
+  /* ---- drag & drop reordering: days within a trip ---- */
+  (function(){
+    let draggedDayKey = null;
+    document.querySelectorAll('[data-daygrip]').forEach(grip=>{
+      grip.addEventListener('dragstart', e=>{
+        draggedDayKey = grip.dataset.daygrip;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      grip.addEventListener('dragend', ()=>{
+        draggedDayKey = null;
+        document.querySelectorAll('[data-daydragid]').forEach(p=>p.classList.remove('drag-over'));
+      });
+    });
+    document.querySelectorAll('[data-daydragid]').forEach(block=>{
+      block.addEventListener('dragover', e=>{ if(draggedDayKey){ e.preventDefault(); block.classList.add('drag-over'); }});
+      block.addEventListener('dragleave', ()=> block.classList.remove('drag-over'));
+      block.addEventListener('drop', e=>{
+        e.preventDefault();
+        block.classList.remove('drag-over');
+        if(!draggedDayKey) return;
+        const [fromTripId, fromDayId] = draggedDayKey.split(':');
+        const [toTripId, toDayId] = block.dataset.daydragid.split(':');
+        if(fromTripId!==toTripId || fromDayId===toDayId) return;
+        const trip = trips.find(t=>t.id===fromTripId);
+        const fromIdx = trip.days.findIndex(d=>d.id===fromDayId);
+        const toIdx = trip.days.findIndex(d=>d.id===toDayId);
+        if(fromIdx===-1||toIdx===-1) return;
+        const [item] = trip.days.splice(fromIdx,1);
+        trip.days.splice(toIdx,0,item);
+        draggedDayKey = null;
+        renderTravel();
+      });
+    });
+  })();
   document.querySelectorAll('[data-addday]').forEach(el=>{
     el.onclick = (e)=>{
       e.stopPropagation();
       const trip = trips.find(t=>t.id===el.dataset.addday);
       const n = trip.days.length+1;
       const previous=trip.days[trip.days.length-1]; const next=previous&&dateInput(previous.date) ? new Date(dateInput(previous.date)+'T00:00:00') : null; if(next) next.setDate(next.getDate()+1);
-      trip.days.push({id:uid(), title:'Day '+n, date:next?next.toISOString().slice(0,10):'', collapsed:false, blocks:[{id:uid(), heading:'', items:[{id:uid(), text:'', paid:false, amount:{gbp:0,inr:0}}]}]});
+      trip.days.push({id:uid(), title:'Day '+n, date:next?next.toISOString().slice(0,10):'', collapsed:false, blocks:[{id:uid(), heading:'', items:[{id:uid(), text:'', paid:false, amount:{currency:'GBP', amount:0}}]}]});
       renderTravel();
     };
   });
@@ -1339,7 +1456,7 @@ function renderTravel(){
       e.stopPropagation();
       const [tripId, dayId] = el.dataset.addblock.split(':');
       const day = getDay(tripId, dayId);
-      day.blocks.push({id:uid(), heading:'', items:[{id:uid(), text:'', paid:false, amount:{gbp:0,inr:0}}]});
+      day.blocks.push({id:uid(), heading:'', items:[{id:uid(), text:'', paid:false, amount:{currency:'GBP', amount:0}}]});
       renderTravel();
     };
   });
@@ -1368,7 +1485,7 @@ function renderTravel(){
       e.stopPropagation();
       const [tripId, dayId, blockId, itemId] = el.dataset.itinpriceadd.split(':');
       const item = getItinItem(tripId, dayId, blockId, itemId);
-      if(item){ item.paid = true; item.amount = item.amount || {gbp:0,inr:0}; renderTravel(); }
+      if(item){ item.paid = true; item.amount = item.amount || {currency:'GBP', amount:0}; renderTravel(); }
     };
   });
   document.querySelectorAll('[data-itinpricedel]').forEach(el=>{
@@ -1378,6 +1495,23 @@ function renderTravel(){
       const item = getItinItem(tripId, dayId, blockId, itemId);
       if(item){ item.paid = false; renderTravel(); }
     };
+  });
+  document.querySelectorAll('[data-currencysel]').forEach(el=>{
+    el.addEventListener('click', e=>e.stopPropagation());
+    el.addEventListener('change', ()=>{
+      const [tripId, dayId, blockId, itemId] = el.dataset.currencysel.split(':');
+      const item = getItinItem(tripId, dayId, blockId, itemId);
+      if(item){ const v = normaliseCurrencyValue(item.amount); item.amount = {currency: el.value, amount: v.amount}; renderTravel(); }
+    });
+  });
+  document.querySelectorAll('[data-currencyamt]').forEach(el=>{
+    el.addEventListener('click', e=>e.stopPropagation());
+    el.addEventListener('blur', ()=>{
+      const [tripId, dayId, blockId, itemId] = el.dataset.currencyamt.split(':');
+      const item = getItinItem(tripId, dayId, blockId, itemId);
+      if(item){ const v = normaliseCurrencyValue(item.amount); item.amount = {currency: v.currency, amount: Number(el.textContent.replace(/[^0-9.\-]/g,''))||0}; renderTravel(); }
+    });
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
   });
   document.querySelectorAll('[data-itintext]').forEach(el=>{
     el.addEventListener('click', e=>e.stopPropagation());
@@ -1395,7 +1529,7 @@ function renderTravel(){
         const item = getItinItem(tripId, dayId, blockId, itemId);
         if(!block || !item) return;
         item.text = el.textContent.trim();
-        const newItem = {id:uid(), text:'', paid:false, amount:{gbp:0,inr:0}};
+        const newItem = {id:uid(), text:'', paid:false, amount:{currency:'GBP', amount:0}};
         const idx = block.items.findIndex(i=>i.id===itemId);
         block.items.splice(idx+1, 0, newItem);
         renderTravel();
@@ -1405,13 +1539,6 @@ function renderTravel(){
         });
       }
     });
-  });
-  bindEditable('[data-moneytext^="itin:"]', el=>{
-    const parts = el.dataset.moneytext.split(':');
-    const [, tripId, dayId, blockId, itemId] = parts;
-    const item = getItinItem(tripId, dayId, blockId, itemId);
-    if(item) item.amount = readMoney(el.textContent);
-    renderTravel();
   });
   bindEditable('[data-itinheading]', el=>{
     const [tripId, dayId, blockId] = el.dataset.itinheading.split(':');
@@ -1575,7 +1702,7 @@ function migrateTripDays(tripList){
         day.blocks = [{
           id: uid(),
           heading: '',
-          items: items.length ? items : [{id:uid(), text:'', paid:false, amount:{gbp:0,inr:0}}]
+          items: items.length ? items : [{id:uid(), text:'', paid:false, amount:{currency:'GBP', amount:0}}]
         }];
         delete day.rows;
       }
